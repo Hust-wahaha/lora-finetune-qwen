@@ -1,39 +1,6 @@
-# Python virtual environment
-.venv/
-venv/
 __pycache__/
 *.pyc
-*.pyo
-
-# Model cache & checkpoints
-.modelscope/
 output/
-*.bin
-*.safetensors
-*.pth
-*.pt
-*.ckpt
-
-# Large installers
-*.run
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# Jupyter
-.ipynb_checkpoints/
-
-# AutoDL internal
-.autodl/
-
-# TF logs
-tf-logs/
-
-# Conda
-.miniconda3/
-.conda/
-
-# macOS
-.DS_Store
+runs/
+artifacts/
+*.log
