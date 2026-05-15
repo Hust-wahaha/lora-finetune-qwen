@@ -1,48 +1,189 @@
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
+from statistics import mean
 
-OUT = Path(__file__).resolve().parents[1] / 'data' / 'final' / 'pilot.jsonl'
+ROOT = Path(__file__).resolve().parents[1]
+INTERIM_OUT = ROOT / 'data' / 'interim' / 'aligned_v1.jsonl'
+TRAIN_OUT = ROOT / 'data' / 'final' / 'train_v1.jsonl'
+VAL_OUT = ROOT / 'data' / 'final' / 'val_v1.jsonl'
+TEST_OUT = ROOT / 'data' / 'final' / 'test_v1.jsonl'
+SUMMARY_OUT = ROOT / 'data' / 'final' / 'dataset_v1_summary.json'
 SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证。'
 
-SAMPLES = [
-    {
-        'id': 'pilot-0001',
-        'source': 'manual',
-        'messages': [
-            {'role': 'system', 'content': SYSTEM},
-            {'role': 'user', 'content': '小明有12颗糖，送给小红5颗，还剩几颗？'},
-            {'role': 'assistant', 'content': '已知原有12颗，送出5颗，剩余12-5=7颗。答案：7。'},
-        ],
-        'modern_question': '小明有12颗糖，送给小红5颗，还剩几颗？',
-        'classical_question': '小明有糖十二颗，遗红五颗，尚余几何？',
-        'structured_cot': '已知初有12，送出5，故12-5=7。',
-        'answer': '7',
-    },
-    {
-        'id': 'pilot-0002',
-        'source': 'manual',
-        'messages': [
-            {'role': 'system', 'content': SYSTEM},
-            {'role': 'user', 'content': '一盒铅笔有8支，3盒一共有多少支？'},
-            {'role': 'assistant', 'content': '每盒8支，3盒就是8×3=24支。答案：24。'},
-        ],
-        'modern_question': '一盒铅笔有8支，3盒一共有多少支？',
-        'classical_question': '一匣铅笔八支，三匣共几支？',
-        'structured_cot': '每匣8支，3匣则8×3=24。',
-        'answer': '24',
-    },
-]
+rng = random.Random(42)
 
 
-def main() -> None:
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    with OUT.open('w', encoding='utf-8') as f:
-        for obj in SAMPLES:
-            f.write(json.dumps(obj, ensure_ascii=False) + '\n')
-    print(OUT)
+def split_name(i: int) -> str:
+    mod = i % 10
+    if mod < 8:
+        return 'train'
+    if mod == 8:
+        return 'val'
+    return 'test'
 
 
-if __name__ == '__main__':
-    main()
+def build_record(base_id: str, family: str, split: str, modern: str, classical: str, cot: str, answer: str):
+    return {
+        'id': base_id,
+        'source': 'synthetic-template-v1',
+        'family': family,
+        'split': split,
+        'modern_question': modern,
+        'classical_question': classical,
+        'structured_cot': cot,
+        'answer': answer,
+    }
+
+
+def render_messages(user_text: str, cot: str, answer: str):
+    return [
+        {'role': 'system', 'content': SYSTEM},
+        {'role': 'user', 'content': user_text},
+        {'role': 'assistant', 'content': f'{cot} 答案：{answer}。'},
+    ]
+
+
+def expand_training_records(item):
+    common = {
+        'base_id': item['id'],
+        'source': item['source'],
+        'family': item['family'],
+        'split': item['split'],
+        'modern_question': item['modern_question'],
+        'classical_question': item['classical_question'],
+        'structured_cot': item['structured_cot'],
+        'answer': item['answer'],
+    }
+    return [
+        {
+            **common,
+            'id': f"{item['id']}-modern",
+            'view': 'modern',
+            'messages': render_messages(item['modern_question'], item['structured_cot'], item['answer']),
+        },
+        {
+            **common,
+            'id': f"{item['id']}-classical",
+            'view': 'classical',
+            'messages': render_messages(item['classical_question'], item['structured_cot'], item['answer']),
+        },
+    ]
+
+
+aligned = []
+
+for i in range(12):
+    a = rng.randint(12, 40)
+    b = rng.randint(3, a // 2)
+    split = split_name(i)
+    aligned.append(build_record(
+        f'give-{i:03d}', 'give_away', split,
+        f'小明有{a}颗糖，送给小红{b}颗，还剩几颗？',
+        f'明有糖{a}颗，遗红{b}颗，尚余几何？',
+        f'初有{a}颗，送出{b}颗，故{a}-{b}={a-b}。',
+        str(a - b),
+    ))
+
+for i in range(12):
+    boxes = rng.randint(2, 9)
+    each = rng.randint(4, 12)
+    split = split_name(i)
+    aligned.append(build_record(
+        f'box-{i:03d}', 'box_total', split,
+        f'一盒铅笔有{each}支，{boxes}盒一共有多少支？',
+        f'一匣铅笔{each}支，{boxes}匣共几支？',
+        f'每匣{each}支，{boxes}匣则{each}×{boxes}={each*boxes}。',
+        str(each * boxes),
+    ))
+
+for i in range(12):
+    people = rng.randint(2, 9)
+    per = rng.randint(3, 12)
+    total = people * per
+    split = split_name(i)
+    aligned.append(build_record(
+        f'div-{i:03d}', 'equal_division', split,
+        f'把{total}个苹果平均分给{people}个小朋友，每人分几个？',
+        f'有苹果{total}个，均分{people}人，人得几何？',
+        f'总数{total}，分与{people}人，故{total}÷{people}={per}。',
+        str(per),
+    ))
+
+for i in range(12):
+    price = rng.randint(3, 15)
+    qty = rng.randint(2, 8)
+    total = price * qty
+    split = split_name(i)
+    aligned.append(build_record(
+        f'price-{i:03d}', 'unit_price', split,
+        f'一支钢笔{price}元，买{qty}支需要多少钱？',
+        f'一笔值{price}元，购{qty}支，共费几何？',
+        f'每支{price}元，买{qty}支，故{price}×{qty}={total}。',
+        str(total),
+    ))
+
+for i in range(12):
+    bundle = rng.randint(3, 9)
+    num = rng.randint(3, 7)
+    total = bundle * num
+    split = split_name(i)
+    aligned.append(build_record(
+        f'bundle-{i:03d}', 'bundle_count', split,
+        f'有{total}朵花，每{bundle}朵扎成一束，可以扎几束？',
+        f'有花{total}朵，每{bundle}朵为一束，可成几束？',
+        f'总花{total}朵，每束{bundle}朵，故{total}÷{bundle}={num}。',
+        str(num),
+    ))
+
+for i in range(12):
+    kg = rng.randint(1, 4)
+    total_g = kg * 1000
+    eaten = rng.choice([200, 300, 400, 500, 600, 700])
+    if eaten >= total_g:
+        eaten = total_g - 100
+    remain = total_g - eaten
+    split = split_name(i)
+    aligned.append(build_record(
+        f'gram-{i:03d}', 'weight_remaining', split,
+        f'妈妈买了{kg}千克苹果，吃掉了{eaten}克，还剩多少克？',
+        f'购苹果{kg}千克，食去{eaten}克，尚余几克？',
+        f'{kg}千克即{total_g}克，食去{eaten}克，故{total_g}-{eaten}={remain}。',
+        str(remain),
+    ))
+
+all_records = []
+for item in aligned:
+    all_records.extend(expand_training_records(item))
+
+splits = {'train': [], 'val': [], 'test': []}
+for rec in all_records:
+    splits[rec['split']].append(rec)
+
+for path in [INTERIM_OUT, TRAIN_OUT, VAL_OUT, TEST_OUT]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+with INTERIM_OUT.open('w', encoding='utf-8') as f:
+    for item in aligned:
+        f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+for split, path in [('train', TRAIN_OUT), ('val', VAL_OUT), ('test', TEST_OUT)]:
+    with path.open('w', encoding='utf-8') as f:
+        for rec in splits[split]:
+            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+
+summary = {
+    'aligned_count': len(aligned),
+    'train_records': len(splits['train']),
+    'val_records': len(splits['val']),
+    'test_records': len(splits['test']),
+    'families': sorted({x['family'] for x in aligned}),
+    'avg_modern_len': round(mean(len(x['modern_question']) for x in aligned), 2),
+    'avg_classical_len': round(mean(len(x['classical_question']) for x in aligned), 2),
+    'avg_structured_cot_len': round(mean(len(x['structured_cot']) for x in aligned), 2),
+    'classical_over_modern_char_ratio': round(mean(len(x['classical_question']) / len(x['modern_question']) for x in aligned), 4),
+}
+SUMMARY_OUT.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+print(json.dumps(summary, ensure_ascii=False, indent=2))

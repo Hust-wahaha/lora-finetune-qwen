@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-REQUIRED = {'id', 'source', 'messages', 'modern_question', 'classical_question', 'structured_cot', 'answer'}
+REQUIRED = {'id', 'source', 'messages', 'modern_question', 'classical_question', 'structured_cot', 'answer', 'view', 'family', 'split'}
 
 
 def validate(path: Path) -> int:
@@ -25,8 +25,13 @@ def validate(path: Path) -> int:
                 print(f'[{idx}] missing {sorted(miss)}')
                 bad += 1
             msgs = obj.get('messages', [])
-            if not isinstance(msgs, list) or len(msgs) < 2:
-                print(f'[{idx}] bad messages')
+            if not isinstance(msgs, list) or len(msgs) != 3:
+                print(f'[{idx}] bad messages length')
+                bad += 1
+                continue
+            roles = [m.get('role') for m in msgs]
+            if roles != ['system', 'user', 'assistant']:
+                print(f'[{idx}] bad roles {roles}')
                 bad += 1
     print(f'bad={bad}')
     return bad

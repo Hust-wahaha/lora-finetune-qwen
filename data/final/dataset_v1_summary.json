@@ -1,0 +1,18 @@
+{
+  "aligned_count": 72,
+  "train_records": 120,
+  "val_records": 12,
+  "test_records": 12,
+  "families": [
+    "box_total",
+    "bundle_count",
+    "equal_division",
+    "give_away",
+    "unit_price",
+    "weight_remaining"
+  ],
+  "avg_modern_len": 19.97,
+  "avg_classical_len": 16.64,
+  "avg_structured_cot_len": 20.36,
+  "classical_over_modern_char_ratio": 0.837
+}
