@@ -99,3 +99,40 @@
 ### 建议下一步
 - 做下一版数据集时优先增强 classical 鲁棒性
 - 同时优化目标格式，降低对长 `<think>` 的依赖
+
+## Codex | 2026-05-16 16:30
+
+### 本次工作
+- 将正式评测管线升级为“规则评测 + DeepSeek V4 Flash 复核错例”两阶段结构
+- 对 `runs/20260516_150218_compare_s800_full_mt512` 的现有预测结果做了一轮完整错例复核
+
+### 为什么这样做
+- baseline 长回答中存在大量“模型其实答对，但规则提取失败”的情况
+- 仅靠数值抽取会严重低估 baseline 真实答题能力，也会影响后续数据方向判断
+
+### 修改/涉及文件
+- `scripts/eval_compare_full.py`
+- `README.md`
+- `docs/PROJECT_PROGRESS.md`
+- `docs/TEAM_SYNC_LOG.md`
+
+### 实验或运行信息
+- 机器：AutoDL RTX 4090 24GB
+- 命令：`python scripts/eval_compare_full.py --existing-run-dir runs/20260516_full_llm_review --llm-review-mode mismatches`
+- 输出目录：`runs/20260516_full_llm_review`
+
+### 结果与结论
+- baseline：规则口径 `55.0%`，LLM 复核后 `90.0%`
+- finetuned：规则口径 `96.25%`，LLM 复核后 `100%`
+- baseline 共复核 `36` 条规则错例，其中 `28` 条被改判为正确
+- finetuned 共复核 `3` 条规则错例，`3` 条全部被改判为正确
+- 说明 baseline 绝对值此前被明显低估，而 finetuned 在当前分布上已经接近饱和
+
+### 风险 / 遗留问题
+- baseline 的 classical 视图仍明显弱于 modern 视图
+- 即使 finetuned 已基本全对，输出仍偏长，`<think>` 依赖依然存在
+
+### 建议下一步
+- 下一轮数据设计继续重点补强 classical 鲁棒性
+- 评测汇报时必须同时给出 `Rule-based Accuracy` 和 `LLM-reviewed Final Accuracy`
+- 下一轮训练要把“输出收尾稳定性”和“减少长 think 依赖”纳入目标
