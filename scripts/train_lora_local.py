@@ -15,8 +15,8 @@ logger = get_logger()
 seed_everything(42)
 
 ROOT = Path(__file__).resolve().parents[1]
-TRAIN_DATASET_PATH = ROOT / 'data' / 'final' / 'train_v1.jsonl'
-VAL_DATASET_PATH = ROOT / 'data' / 'final' / 'val_v1.jsonl'
+TRAIN_DATASET_PATH = ROOT / 'data' / 'final' / 'train_s800.jsonl'
+VAL_DATASET_PATH = ROOT / 'data' / 'final' / 'val_s800.jsonl'
 RUNS = ROOT / 'runs'
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
 SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证。'
@@ -60,9 +60,9 @@ def main() -> None:
         report_to=['tensorboard'],
         logging_first_step=True,
         save_strategy='steps',
-        save_steps=20,
+        save_steps=25,
         eval_strategy='steps',
-        eval_steps=20,
+        eval_steps=25,
         gradient_accumulation_steps=16,
         num_train_epochs=1,
         save_total_limit=2,
