@@ -60,6 +60,22 @@
   - target-format discipline
   - evaluation robustness
 
+## 2026-05-16 Evaluation Pipeline Update
+
+- The formal evaluation pipeline is now upgraded to a two-stage design:
+  - Stage 1: rule-based numeric answer extraction and exact-match scoring
+  - Stage 2: `DeepSeek V4 Flash` review for mismatched or selected samples
+- This change is motivated by a concrete failure mode already observed in baseline outputs:
+  - the model may reason correctly
+  - the final answer may be buried inside a long response
+  - rule-based extraction may therefore underestimate true answer correctness
+- The new standard evaluation script is `scripts/eval_compare_full.py`.
+- It now supports:
+  - direct generation + evaluation
+  - reusing existing prediction files from an older run
+  - `DeepSeek V4 Flash` review for `mismatches` or `all` samples
+  - separate reporting of rule accuracy and LLM-reviewed final accuracy
+
 ## Immediate Next Steps
 
 - Keep `s800` as the current in-distribution baseline dataset.
@@ -68,4 +84,5 @@
   - correctness under generous decoding
   - concise-answer rate
   - answer-marker coverage
+- Use `DeepSeek V4 Flash` as the standard lightweight review model for difficult evaluation cases.
 - Prepare the next dataset iteration to improve classical robustness and reduce reliance on long post-training `<think>` traces.

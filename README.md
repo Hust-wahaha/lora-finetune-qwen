@@ -13,10 +13,10 @@
 - 当前主线数据集：`s800`
 - 当前主线模型：`runs/20260515_210429/checkpoints/checkpoint-40`
 - 已完成一次更可信的全量评测：
-  - baseline：`55.0%`
-  - finetuned：`96.25%`
+  - Rule-based baseline：`55.0%`
+  - Rule-based finetuned：`96.25%`
 
-说明：早期 `max_tokens=256` 的评测会被长 `<think>` 截断低估；当前应以 `max_tokens=512` 版本结果为准。
+说明：早期 `max_tokens=256` 的评测会被长 `<think>` 截断低估；当前应以 `max_tokens=512` 版本结果为准。后续正式口径改为“规则评测 + DeepSeek V4 Flash 复核错例”。
 
 ## Repository Layout
 
@@ -39,7 +39,7 @@
 
 - `scripts/generate_dataset.py`：生成当前 `s800` 数据集
 - `scripts/train_lora_local.py`：启动当前主线 LoRA 训练
-- `scripts/eval_compare_full.py`：baseline vs finetuned 全量对比评测
+- `scripts/eval_compare_full.py`：两阶段全量评测，先做规则抽取，再用 `DeepSeek V4 Flash` 复核错例或全量样本
 - `scripts/validate_dataset.py`：数据结构与字段校验
 
 ## Recommended Workflow
@@ -61,3 +61,4 @@
 - `runs/`、`artifacts/` 属于实验产物目录，新增实验必须保证目录名可追溯。
 - 新结论先写入 `docs/PROJECT_PROGRESS.md`，再决定是否进入 README。
 - 组员之间不要私聊式同步实验细节，统一落到 `docs/TEAM_SYNC_LOG.md`。
+- 正式汇报时优先区分三类指标：`Rule-based Accuracy`、`LLM-reviewed Accuracy`、`Answer Marker Rate`。
