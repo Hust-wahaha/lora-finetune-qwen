@@ -1,51 +1,61 @@
-# 仓库规范化计划
+# 仓库规则与使用规范
 
-## 目标
+本文档不是计划，也不是草案，而是当前仓库已经采用的工作规范。后续组员直接按本文档执行即可，不需要再对照“计划完成了多少”。
 
-把当前“已经能跑通实验”的仓库整理成“多名组员可并行协作、结果可追溯、接手成本低”的科研工程仓库。重点不是重写全部代码，而是先把数据、训练、评测、文档、实验记录之间的边界理顺。
+## 一、目录职责
 
-## 基本约束
-
-- 不打断已经验证过的 `s800` / `s800_think` 主线实验
-- 保留现有能复现结果的脚本，优先做增量整理
-- 让后续负责造数据和深度评测的同学直接复用现有代码
-
-## 第一阶段：目录职责与命名规范
-
-### 目录职责
+### `data/`
 
 - `data/raw`
-  - 外部来源数据
-  - 原始公开数据集
-  - 人工整理但未清洗的原始材料
+  - 外部原始来源数据
+  - 公开数据集原文件
+  - 未清洗、未统一字段的原始材料
 - `data/interim`
   - 对齐后的中间数据
-  - 增补了字段但还未定稿的数据
-  - 风格转换、字段补全、结构重组后的版本
+  - 已做风格转换、字段补全，但还不是最终训练版本的数据
 - `data/final`
   - 可直接进入训练或评测的数据版本
-  - 必须具备稳定 schema
-- `src`
-  - 可复用核心逻辑
-  - 不放一次性实验入口
-- `scripts`
-  - CLI 入口脚本
-  - 只保留薄封装，不堆主要业务逻辑
-- `runs`
-  - 训练、评测、抽样、分析输出
-- `docs`
-  - 项目说明、计划、进度、组员同步、数据格式说明
+  - 默认要求 schema 稳定
 
-### 命名规范
+### `src/`
 
-- 数据集名称统一使用 `dataset_tag`
-- `dataset_tag` 需要显式编码四类信息：
-  - 数据来源
-  - 任务风格
-  - 数据规模
-  - 版本号
+- 放可复用公共逻辑
+- 当前已落地：
+  - `src/common/paths.py`
+  - `src/common/naming.py`
+  - `src/common/schema.py`
+- 不把一次性实验入口写在这里
 
-推荐格式：
+### `scripts/`
+
+- 只放命令行入口脚本
+- 当前主入口包括：
+  - `generate_dataset.py`
+  - `validate_dataset.py`
+  - `train_lora_local.py`
+  - `eval_compare_full.py`
+  - `inspect_think_samples.py`
+
+### `runs/`
+
+- 放训练、评测、抽样、案例分析的运行产物
+- 所有实验输出默认写入这里
+- 不把 `runs/` 内文件手工移动到其他地方，以免破坏追溯关系
+
+### `docs/`
+
+- 放正式文档
+- 默认入口：
+  - `README.md`
+  - `PROJECT_PROGRESS.md`
+  - `DATA_SCHEMA.md`
+  - `TEAM_SYNC_LOG.md`
+
+## 二、命名规则
+
+### 数据集标签 `dataset_tag`
+
+统一格式：
 
 ```text
 {source}_{task}_{size}_{version}
@@ -53,66 +63,41 @@
 
 示例：
 
-- `synth_structured_800_v1`
-- `math23k_structured_2000_v1`
+- `synth_think_800_v1`
+- `math23k_structuredthink_2000_v1`
 - `math23k_think_2000_v2`
-- `mixcn_think_5000_v3`
 
-补充规则：
+字段含义：
 
 - `source`
-  - 表示来源或来源组合
-  - 例如 `synth`、`math23k`、`mixcn`
+  - 数据来源或来源组合
 - `task`
-  - 表示监督任务
-  - 例如 `structuredthink`、`think`、`shortthink`
+  - 监督任务类型，例如 `think`、`structuredthink`、`shortthink`
 - `size`
-  - 表示最终可训练样本规模
-  - 必须写绝对数值，不写 `small` / `large`
+  - 最终训练样本规模，写绝对数值
 - `version`
-  - 表示同一数据方向下的数据迭代版本
-  - 必须从 `v1` 开始单调递增
+  - 同方向数据迭代版本，从 `v1` 开始递增
 
-### 训练 run 命名规范
+说明：
 
-训练目录统一格式：
+- 当前历史数据集 `s800`、`s800_think` 保留兼容，不强制重命名
+- 从现在开始新增数据集，统一按新规则命名
+
+### run 目录命名
+
+训练：
 
 ```text
 {timestamp}_train_{dataset_tag}_{model_tag}_{exp_tag}
 ```
 
-示例：
-
-- `20260517_002714_train_synth_think_800_v1_qwen3.5-0.8b_think-pilot`
-- `20260518_103000_train_math23k_structured_2000_v1_qwen3.5-0.8b_baseline`
-
-其中：
-
-- `timestamp`
-  - 绝对时间，精确到秒
-- `dataset_tag`
-  - 必须与训练输入数据一致
-- `model_tag`
-  - 例如 `qwen3.5-0.8b`
-- `exp_tag`
-  - 表示实验意图，如 `baseline`、`think-pilot`、`ablation-no-classical`
-
-### 评测 run 命名规范
-
-评测目录统一格式：
+评测：
 
 ```text
 {timestamp}_eval_{dataset_tag}_{model_tag}_{eval_tag}
 ```
 
-示例：
-
-- `20260517_113430_eval_synth_think_800_v1_qwen3.5-0.8b_rule`
-- `20260518_141500_eval_math23k_think_2000_v2_qwen3.5-0.8b_llmreview`
-
-### 抽样与案例分析 run 命名规范
-
-抽样目录统一格式：
+抽样：
 
 ```text
 {timestamp}_inspect_{dataset_tag}_{model_tag}_{inspect_tag}
@@ -120,82 +105,141 @@
 
 示例：
 
-- `20260517_113359_inspect_synth_think_800_v1_qwen3.5-0.8b_checkpoint40`
+- `20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
+- `20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
 
-## 第二阶段：脚本边界重构
+## 三、数据字段命名规则
 
-- 把当前可复用逻辑从 `scripts/` 抽到 `src/`
-- `src/` 建议拆成：
-  - `src/datasets/`
-  - `src/training/`
-  - `src/evaluation/`
-  - `src/analysis/`
-  - `src/common/`
-- 当前建议抽出的公共逻辑：
-  - 数据构造
-  - prompt 渲染
-  - 训练参数解析
-  - 答案抽取
-  - 评测汇总
-- `scripts/` 只保留入口，不再堆主要业务逻辑
-- 所有入口脚本统一支持：
-  - `--dataset-tag`
-  - `--run-tag`
-  - `--output-dir` 或默认输出规则
+- 所有显式思维监督字段统一命名为 `xxx_think`
+- 不再新增 `xxx_cot`
+- `structured_cot` 只作为历史兼容字段保留
+- 新增方法时直接扩展为：
+  - `short_think`
+  - `compressed_think`
+  - `symbolic_think`
+  - 其他符合规则的新字段
 
-## 第三阶段：实验追溯规范
+数据字段详情、必填/可选说明，统一看：
 
-- 每次训练必须保存：
-  - `run_config.json`
-  - 数据集路径
-  - checkpoint 路径
-  - 关键训练参数
-  - 核心评测结果引用
-- 每次评测必须保存：
-  - 输入模型
-  - 输入测试集
-  - 生成参数
-  - summary json
-  - prediction 文件
-- README 和 `PROJECT_PROGRESS.md` 只写高层结论
-- 详细过程与具体文件路径统一落在：
-  - `runs/`
-  - `TEAM_SYNC_LOG.md`
+- [DATA_SCHEMA.md](DATA_SCHEMA.md)
 
-## 第四阶段：面向组员协作的可扩展性
+## 四、脚本使用规范
 
-### 为数据构造同学预留
+### 数据生成
 
-- 数据源适配层
-- 风格转换规则层
-- schema 校验层
-- 数据版本登记说明
+```bash
+python scripts/generate_dataset.py --variant think --think-style by_view --dataset-tag s800_think
+```
 
-### 为深度评测同学预留
+作用：
 
-- think 长度指标
-- think 质量指标
-- 超短窗口评测
-- LLM-as-judge 评测适配器
+- 生成 `data/interim/aligned_*.jsonl`
+- 生成 `data/final/train/val/test_*.jsonl`
+- 生成数据摘要 json
 
-### 需要补齐的文档
+### 数据校验
 
-- 数据格式说明
-- 新增实验的最小操作流程
-- 结果记录模板
-- 常见命名示例
+```bash
+python scripts/validate_dataset.py data/final/train_s800_think.jsonl --expect-think-tags
+```
 
-## 交付物
+作用：
 
-1. 目录职责重整，不改主实验结果
-2. `src/` 初版落地
-3. 训练 / 评测 / 抽样入口参数风格统一
-4. 数据 schema 文档
-5. 组员协作说明与新增实验模板
+- 检查字段是否缺失
+- 检查 `messages` 格式是否正确
+- 检查 `<think>` 包裹格式是否符合当前训练目标
 
-## 推荐执行顺序
+### 训练
 
-1. 先整理目录与命名，不碰算法逻辑
-2. 再抽 `src/` 公共逻辑
-3. 再补数据 / 评测接口文档
-4. 最后让其他同学在新结构上继续扩展
+```bash
+python scripts/train_lora_local.py --dataset-tag s800_think --run-tag reference_v1
+```
+
+作用：
+
+- 自动创建标准命名的训练 run 目录
+- 保存 `run_config.json`
+- 保存 checkpoint
+- 保存 `last_checkpoint.txt`
+
+### 评测
+
+```bash
+python scripts/eval_compare_full.py --dataset-tag s800_think --checkpoint <checkpoint_path> --run-tag rule
+```
+
+作用：
+
+- 生成 baseline / finetuned prediction
+- 生成 `compare_summary.json`
+- 可选接 `DeepSeek V4 Flash` 复核
+
+### 抽样检查
+
+```bash
+python scripts/inspect_think_samples.py --checkpoint <checkpoint_path> --dataset-tag s800_think --tag think-samples
+```
+
+作用：
+
+- 抽样检查白话 / 文言输入下的 `think` 输出是否符合预期
+
+## 五、参考 Run 怎么用
+
+### `smoke_ref`
+
+- 目录：
+  - `runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
+- 用途：
+  - 给新同学看完整训练产物长什么样
+  - 用来验证链路是否通
+- 注意：
+  - 这条 run 的 `eval_steps=1`
+  - 适合教学观察
+  - 不适合作为正式长实验默认参数
+
+### `reference_v1`
+
+- 目录：
+  - `runs/20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
+- 用途：
+  - 作为正式训练参数模板
+  - 后续组员开新实验时优先参考它
+
+## 六、文档更新规则
+
+- 高层实验结论：
+  - 写进 `PROJECT_PROGRESS.md`
+- 数据字段规范：
+  - 写进 `DATA_SCHEMA.md`
+- 协作进展、交接说明、个人推进：
+  - 统一追加到 `TEAM_SYNC_LOG.md`
+
+禁止的做法：
+
+- 不把重要结论只留在微信或口头交流里
+- 不覆盖他人日志条目
+- 不只写“已完成”，必须写清楚做了什么、为什么、改了哪些文件、结果是什么
+
+## 七、当前注意事项
+
+- AutoDL 上运行时，统一优先使用：
+
+```bash
+.venv/bin/python
+```
+
+- 不要依赖交互 shell 的 `python3` 路径
+- 不要把 `runs/`、`artifacts/`、`__pycache__/`、`.ipynb_checkpoints/` 提交到仓库
+- 不要把临时响应文件、个人草稿、无关 notebook 缓存混进正式提交
+
+## 八、当前组员最小上手路径
+
+新同学接手时，按下面顺序操作即可：
+
+1. 读 [README.md](../README.md)
+2. 读 [DATA_SCHEMA.md](DATA_SCHEMA.md)
+3. 读本文件
+4. 看 `scripts/` 入口
+5. 看 `runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
+6. 在 `TEAM_SYNC_LOG.md` 追加自己的工作记录
