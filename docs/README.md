@@ -10,7 +10,7 @@
 2. [DATA_SCHEMA.md](DATA_SCHEMA.md)
    再看数据字段规范，明确哪些字段必填、哪些字段按任务可选，以及 `xxx_think` 的统一命名规则。
 
-3. [REPO_REFACTOR_PLAN.md](REPO_REFACTOR_PLAN.md)
+3. [REPOSITORY_RULES.md](REPOSITORY_RULES.md)
    直接看当前仓库规则、使用方法、命名规范和注意事项。
 
 4. [PHASE1_EXECUTION_CHECKLIST.md](PHASE1_EXECUTION_CHECKLIST.md)
@@ -25,7 +25,7 @@
   记录正式实验结论、方向变化、阶段性判断。
 - `DATA_SCHEMA.md`
   记录数据字段规范、必填/可选规则与命名扩展规则。
-- `REPO_REFACTOR_PLAN.md`
+- `REPOSITORY_RULES.md`
   记录当前仓库正式规则、使用方法和注意事项。
 - `PHASE1_EXECUTION_CHECKLIST.md`
   记录第一阶段执行清单与完成标准。
@@ -38,4 +38,4 @@
 - 不把关键结论只留在聊天记录里，必须落到文档。
 - 不覆盖他人记录；协作日志统一在文末追加。
 - 实验目录、脚本路径、数据集标签尽量写全，保证可追溯。
-- 如果只想快速上手仓库，优先看 `README.md`、`DATA_SCHEMA.md`、`REPO_REFACTOR_PLAN.md`。
+- 如果只想快速上手仓库，优先看 `README.md`、`DATA_SCHEMA.md`、`REPOSITORY_RULES.md`。

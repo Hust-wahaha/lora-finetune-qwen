@@ -87,7 +87,7 @@
   - `PROJECT_PROGRESS.md`
   - `TEAM_SYNC_LOG.md`
   - `DATA_SCHEMA.md`
-  - `REPO_REFACTOR_PLAN.md`
+  - `REPOSITORY_RULES.md`
   - `PHASE1_EXECUTION_CHECKLIST.md`
 
 ## 本阶段完成标准

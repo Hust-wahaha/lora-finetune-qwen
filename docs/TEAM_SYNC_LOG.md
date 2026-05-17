@@ -140,3 +140,44 @@
 ### 建议下一步
 - 等 formal reference run 完成后，把其输出目录、核心指标和推荐使用场景补进 README 与进度文档
 - 后续组员新增训练实验时，优先参考 formal run，不要直接照抄 smoke 参数
+
+## Codex | 2026-05-17 22:21
+
+### 本次工作
+- 补记 `reference_v1` 正式参考 run 的最终结果
+- 将仓库规范文档改名为更直接的规则文档 `REPOSITORY_RULES.md`
+
+### 为什么这样做
+- 队友需要直接可执行的现行规则，而不是继续看带有 `plan` 语义的文档名
+- 正式参考 run 已完成，需要把它补进文档，作为后续训练模板
+
+### 修改/涉及文件
+- `README.md`
+- `docs/README.md`
+- `docs/PROJECT_PROGRESS.md`
+- `docs/TEAM_SYNC_LOG.md`
+- `docs/PHASE1_EXECUTION_CHECKLIST.md`
+- `docs/REPOSITORY_RULES.md`
+
+### 实验或运行信息
+- 机器：AutoDL RTX 4090 24GB
+- formal 输出目录：`runs/20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
+
+### 结果与结论
+- `reference_v1` 已正常完成
+- 最终 checkpoint：
+  - `checkpoint-40`
+- 最终训练结果：
+  - `train_runtime = 1322.5324s`
+  - `train_loss = 0.27809329`
+- 最终验证结果：
+  - `eval_loss = 0.00075078`
+  - `eval_token_acc = 1.0`
+- 后续正式训练应优先参考这条 run，而不是 `smoke_ref`
+
+### 风险 / 遗留问题
+- 当前文档与仓库结构已经适合组员接手，但更深入的评测维度仍待后续组员扩展
+
+### 建议下一步
+- 后续若新增数据方向，先保证 `dataset_tag`、`xxx_think` 命名和 schema 规则不被破坏
+- 新实验默认沿用 `reference_v1` 参数，再按实验目标做局部改动

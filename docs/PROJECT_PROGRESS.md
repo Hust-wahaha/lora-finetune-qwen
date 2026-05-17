@@ -279,8 +279,9 @@
 
 ### formal reference run
 
-- 已启动一条正式参考 run，供后续组员直接对照标准配置：
+- 已完成一条正式参考 run，供后续组员直接对照标准配置：
   - `run_tag=reference_v1`
+  - run 目录：`runs/20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
 - 参数口径：
   - `dataset_tag=s800_think`
   - `max_length=1024`
@@ -293,3 +294,22 @@
 - 这条 run 的用途是：
   - 给后续正式实验提供标准训练模板
   - 避免队友误用 smoke 参数
+
+### formal reference run 最终结果
+
+- 最终 checkpoint：
+  - `checkpoint-40`
+- 最终训练结果：
+  - `train_runtime = 1322.5324s`
+  - `train_loss = 0.27809329`
+  - `epoch = 1.0`
+- 最终验证结果：
+  - `eval_loss = 0.00075078`
+  - `eval_token_acc = 1.0`
+
+### 参考意义
+
+- `smoke_ref` 解决的是“整条链路能不能通”
+- `reference_v1` 解决的是“正式训练默认应该怎么配”
+- 因此后续组员若要新开正式实验，应优先参考：
+  - `runs/20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
