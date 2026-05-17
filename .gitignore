@@ -4,3 +4,6 @@ output/
 runs/
 artifacts/
 *.log
+.ipynb_checkpoints/
+response_think.json
+response_wo-think.json

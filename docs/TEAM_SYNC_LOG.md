@@ -1,25 +1,25 @@
-# Team Sync Log
+# 团队协作进度日志
 
-本文件是全组统一协作文档。所有组员都只在这个文件末尾追加，不覆盖、不改写他人内容。
+本文件是全组统一的接龙式进度文档。所有组员都只在文末追加，不覆盖、不删除他人内容。
 
-## Purpose
+## 目的
 
-- 降低队友之间的沟通成本
+- 降低组员之间的沟通成本
 - 保证任何人都能快速接手上一位同学的工作
-- 避免“只知道做了什么，不知道为什么、改了哪里、结论是什么”
+- 避免“知道做了什么，但不知道为什么、改了哪里、结果如何”
 
-## Mandatory Update Rules
+## 强制更新规则
 
-- 每次完成一段可汇报工作，就追加一条记录
-- 记录必须写绝对时间，格式统一：`YYYY-MM-DD HH:MM`
-- 记录必须写清楚文件路径、实验目录、结果结论
+- 每完成一段可汇报工作，就追加一条记录
+- 时间必须写绝对时间，统一格式：`YYYY-MM-DD HH:MM`
+- 必须写清楚文件路径、实验目录、结果结论
 - 结论和问题都要写，不能只写“已完成”
-- 禁止删除他人条目；若发现错误，新增一条“勘误/修正”说明
+- 发现前文有误时，新增一条“勘误/修正”，不要直接改写旧记录
 - 新条目统一追加到文末，按时间自然接龙
 
-## Entry Template
+## 记录模板
 
-复制下面模板，直接接在文末：
+将下面模板复制到文末直接填写：
 
 ```md
 ## [姓名] | [YYYY-MM-DD HH:MM]
@@ -48,91 +48,95 @@
 - 
 ```
 
-## Writing Standard
+## 填写标准
 
-- “本次工作”写动作，不写空话  
-  例：`补跑 s800 全量 baseline vs finetuned 评测`
+- “本次工作”写动作，不写空话
+- “为什么这样做”写动机，不写“老师要求”
+- “修改/涉及文件”必须写仓库内相对路径
+- “结果与结论”必须包含可复用信息，例如准确率、失败模式、异常现象
+- “建议下一步”要写到下一个同学可以直接开做
 
-- “为什么这样做”写动机  
-  例：`之前 256 token 评测存在长 think 截断，结果可能被低估`
+## 示例
 
-- “修改/涉及文件”必须给相对路径  
-  例：`scripts/eval_compare_full.py`、`docs/PROJECT_PROGRESS.md`
-
-- “结果与结论”必须包含可复用信息  
-  例：准确率、实验目录、异常现象、解释判断
-
-- “建议下一步”要让下一个同学可以直接开做
-
-## Example Entry
-
-## Codex | 2026-05-16 15:20
+## Codex | 2026-05-17 18:00
 
 ### 本次工作
-- 补跑 `s800` 全量 baseline vs finetuned 正式评测
-- 修正文档结构并新增团队协作文档
+- 跑通 `s800_think` 的显式 `think` 监督
+- 补齐仓库中文文档与协作规范
 
 ### 为什么这样做
-- 之前 `max_tokens=256` 的评测会被长 `<think>` 截断，不能作为最终判断
-- 组内需要统一的接龙式进度文档，降低同步成本
+- 需要先验证“监督 `<think>` 内容本身”这条主线是否成立
+- 后续会有同学分工造数据和做评测，仓库必须先变成可协作状态
 
 ### 修改/涉及文件
-- `scripts/eval_compare_full.py`
+- `scripts/generate_dataset.py`
+- `scripts/train_lora_local.py`
+- `scripts/inspect_think_samples.py`
 - `docs/PROJECT_PROGRESS.md`
-- `docs/TEAM_SYNC_LOG.md`
-- `README.md`
 
 ### 实验或运行信息
 - 机器：AutoDL RTX 4090 24GB
-- 命令：`python scripts/eval_compare_full.py --checkpoint runs/20260515_210429/checkpoints/checkpoint-40 --max-tokens 512 --tag compare_s800_full_mt512`
-- 输出目录：`runs/20260516_150218_compare_s800_full_mt512`
+- 命令：`python scripts/train_lora_local.py --dataset-tag s800_think --run-tag think_pilot`
+- 输出目录：`runs/20260517_002714_think_pilot`
 
 ### 结果与结论
-- baseline：`55.0%`
-- finetuned：`96.25%`
-- `s800` 在自有分布上已经证明方向有效，当前短板转为输出控制而非算术能力
+- 微调后白话题输出白话 `think`
+- 微调后文言题输出文言 `think`
+- `test_s800_think` 规则评测从 `55.0%` 提升到 `100%`
 
 ### 风险 / 遗留问题
-- 模型仍然普遍保留 `<think>` 长输出
-- classical 视图仍弱于 modern 视图
+- 当前数据规模仍小，暂时不能代表跨分布泛化
+- 更细的 `think` 质量评测脚本仍待补齐
 
 ### 建议下一步
-- 做下一版数据集时优先增强 classical 鲁棒性
-- 同时优化目标格式，降低对长 `<think>` 的依赖
+- 继续扩充数据集版本，同时保持命名与 schema 稳定
+- 让评测同学基于统一目录和字段规范补深度指标
 
-## Codex | 2026-05-16 16:30
+## Codex | 2026-05-17 20:35
 
 ### 本次工作
-- 将正式评测管线升级为“规则评测 + DeepSeek V4 Flash 复核错例”两阶段结构
-- 对 `runs/20260516_150218_compare_s800_full_mt512` 的现有预测结果做了一轮完整错例复核
+- 在 AutoDL 上补跑一条全链路 smoke 训练参考
+- 启动一条正式训练参考 run，供后续组员直接复用
+- 验证远端仓库新架构、虚拟环境、数据生成与校验链路可用
 
 ### 为什么这样做
-- baseline 长回答中存在大量“模型其实答对，但规则提取失败”的情况
-- 仅靠数值抽取会严重低估 baseline 真实答题能力，也会影响后续数据方向判断
+- 仅有“脚本能启动”还不够，组员更需要看到完整训练产物长什么样
+- smoke run 用来证明仓库现在能从数据到 checkpoint 全链路闭环
+- formal reference run 用来提供标准参数模板，避免后续同学直接照搬不合理的 smoke 评测频率
 
 ### 修改/涉及文件
-- `scripts/eval_compare_full.py`
-- `README.md`
 - `docs/PROJECT_PROGRESS.md`
 - `docs/TEAM_SYNC_LOG.md`
+- 远端实验目录：`runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
 
 ### 实验或运行信息
 - 机器：AutoDL RTX 4090 24GB
-- 命令：`python scripts/eval_compare_full.py --existing-run-dir runs/20260516_full_llm_review --llm-review-mode mismatches`
-- 输出目录：`runs/20260516_full_llm_review`
+- smoke 命令：`.venv/bin/python scripts/train_lora_local.py --dataset-tag s800_think --run-tag smoke_ref --max-length 512 --num-train-epochs 0.05 --gradient-accumulation-steps 8 --save-steps 1 --eval-steps 1 --logging-steps 1`
+- smoke 输出目录：`runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
+- formal 命令：`.venv/bin/python scripts/train_lora_local.py --dataset-tag s800_think --run-tag reference_v1 --max-length 1024 --learning-rate 1e-4 --train-batch-size 1 --eval-batch-size 1 --gradient-accumulation-steps 16 --num-train-epochs 1.0 --save-steps 25 --eval-steps 25 --logging-steps 5`
+- formal 输出目录：待运行完成后补记
 
 ### 结果与结论
-- baseline：规则口径 `55.0%`，LLM 复核后 `90.0%`
-- finetuned：规则口径 `96.25%`，LLM 复核后 `100%`
-- baseline 共复核 `36` 条规则错例，其中 `28` 条被改判为正确
-- finetuned 共复核 `3` 条规则错例，`3` 条全部被改判为正确
-- 说明 baseline 绝对值此前被明显低估，而 finetuned 在当前分布上已经接近饱和
+- smoke 训练已完整跑通
+- smoke run 证明以下链路都正常：
+  - 数据读取
+  - Swift 模板编码
+  - LoRA 挂载
+  - CUDA 训练
+  - checkpoint 保存
+  - run_config / last_checkpoint 追溯文件生成
+- smoke 最终结果：
+  - `train_runtime = 445.4s`
+  - `train_loss = 1.652`
+  - `eval_loss = 1.083`
+  - `eval_token_acc = 0.7705`
+- smoke 同时暴露出一个重要经验：
+  - `eval_steps=1` 虽然适合教学观察，但会显著拖慢总时长，不能作为正式默认配置
 
 ### 风险 / 遗留问题
-- baseline 的 classical 视图仍明显弱于 modern 视图
-- 即使 finetuned 已基本全对，输出仍偏长，`<think>` 依赖依然存在
+- formal reference run 仍在进行中，完成后需要补充最终 run 目录与结果摘要
+- 远端命令应统一显式使用 `.venv/bin/python`，不要依赖交互 shell 的 PATH
 
 ### 建议下一步
-- 下一轮数据设计继续重点补强 classical 鲁棒性
-- 评测汇报时必须同时给出 `Rule-based Accuracy` 和 `LLM-reviewed Final Accuracy`
-- 下一轮训练要把“输出收尾稳定性”和“减少长 think 依赖”纳入目标
+- 等 formal reference run 完成后，把其输出目录、核心指标和推荐使用场景补进 README 与进度文档
+- 后续组员新增训练实验时，优先参考 formal run，不要直接照抄 smoke 参数

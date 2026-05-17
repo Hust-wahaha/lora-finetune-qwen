@@ -1,31 +1,40 @@
-# Documentation Guide
+# 文档导航
 
-本目录是项目的唯一文档入口区。默认按下面顺序阅读和更新。
+本目录是项目文档总入口。新同学接手时，默认按下面顺序阅读。
 
-## Read Order
+## 推荐阅读顺序
 
-1. [PROJECT_PROGRESS.md](PROJECT_PROGRESS.md)  
-   看主线研究目标、当前最好结果、实验结论与下一步计划。
+1. [PROJECT_PROGRESS.md](PROJECT_PROGRESS.md)
+   先看主线目标、当前最好结果、已经验证过的结论与下一步重点。
 
-2. [TEAM_SYNC_LOG.md](TEAM_SYNC_LOG.md)  
-   看每位组员最近做了什么、改了哪些文件、结论是什么、还卡在哪里。
+2. [DATA_SCHEMA.md](DATA_SCHEMA.md)
+   再看数据字段规范，明确哪些字段必填、哪些字段按任务可选，以及 `xxx_think` 的统一命名规则。
 
-## Write Rules
+3. [REPO_REFACTOR_PLAN.md](REPO_REFACTOR_PLAN.md)
+   了解仓库规范化的整体方向，知道当前为什么这样组织目录和脚本。
 
-- 研究主线结论、正式实验结论、方向调整，写入 `PROJECT_PROGRESS.md`
-- 日常协作更新、个人任务进展、问题同步、交接说明，写入 `TEAM_SYNC_LOG.md`
-- 不要把重要结论只写在微信、QQ、口头交流里
-- 不要覆盖他人记录，只追加新条目
-- 更新时间必须写绝对时间，例如 `2026-05-16 15:30`
+4. [PHASE1_EXECUTION_CHECKLIST.md](PHASE1_EXECUTION_CHECKLIST.md)
+   看第一阶段已经落地或待落地的具体执行项，方便对照推进。
 
-## Minimal Collaboration Standard
+5. [TEAM_SYNC_LOG.md](TEAM_SYNC_LOG.md)
+   查看最近每位同学做了什么、改了哪些文件、用了哪些实验目录、遗留问题是什么。
 
-每次完成一段可汇报的工作，都至少记录：
+## 写作分工
 
-- 做了什么
-- 为什么这么做
-- 改了哪些文件
-- 结果是什么
-- 下一步建议是什么
+- `PROJECT_PROGRESS.md`
+  记录正式实验结论、方向变化、阶段性判断。
+- `DATA_SCHEMA.md`
+  记录数据字段规范、必填/可选规则与命名扩展规则。
+- `REPO_REFACTOR_PLAN.md`
+  记录仓库规范化方案，不写临时碎片信息。
+- `PHASE1_EXECUTION_CHECKLIST.md`
+  记录第一阶段执行清单与完成标准。
+- `TEAM_SYNC_LOG.md`
+  记录日常协作更新、个人任务推进、交接说明。
 
-如果所有人都按这个标准更新，队友无需追问就能接手继续做。
+## 统一要求
+
+- 所有正式文档统一使用中文。
+- 不把关键结论只留在聊天记录里，必须落到文档。
+- 不覆盖他人记录；协作日志统一在文末追加。
+- 实验目录、脚本路径、数据集标签尽量写全，保证可追溯。

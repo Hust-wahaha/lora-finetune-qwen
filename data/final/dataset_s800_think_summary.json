@@ -1,0 +1,23 @@
+{
+  "dataset_tag": "s800_think",
+  "variant": "think",
+  "think_style": "by_view",
+  "aligned_count": 400,
+  "train_records": 640,
+  "val_records": 80,
+  "test_records": 80,
+  "families": [
+    "box_total",
+    "bundle_count",
+    "equal_division",
+    "give_away",
+    "unit_price",
+    "weight_remaining"
+  ],
+  "avg_modern_len": 20.18,
+  "avg_classical_len": 16.86,
+  "avg_structured_think_len": 20.95,
+  "avg_modern_think_len": 30.16,
+  "avg_classical_think_len": 21.73,
+  "classical_over_modern_char_ratio": 0.8394
+}

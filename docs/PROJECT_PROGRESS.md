@@ -1,137 +1,295 @@
-# Project Progress Log
+# 项目进展记录
 
-## 2026-05-15
+## 2026-05-15 初始工程搭建
 
-- Established reproducible workspace layout: `data/raw`, `data/interim`, `data/final`, `scripts`, `runs`, `artifacts`.
-- Added pilot dataset generator and validator.
-- Produced `data/final/pilot.jsonl` and validated schema successfully.
-- Confirmed `ms-swift` supports local `jsonl/json/csv` datasets.
-- Reworked the training entrypoint to consume local `messages`-style JSONL data.
-- Expanded to a structured-coT-centered v1 dataset and completed a first formal training run.
-- Generated the current standard `s800` dataset with 400 aligned source items and 800 view-expanded train/val/test records.
-- Completed the main `s800` LoRA run at `runs/20260515_210429/checkpoints/checkpoint-40`.
+- 建立了可复现实验目录结构：`data/raw`、`data/interim`、`data/final`、`scripts`、`runs`、`artifacts`
+- 添加了最早期的试验性数据集生成与校验脚本
+- 产出 `data/final/pilot.jsonl` 并完成基础 schema 校验
+- 确认 `ms-swift` 支持本地 `jsonl/json/csv` 数据集
+- 重构训练入口，使其直接消费 `messages` 风格的本地 JSONL 数据
+- 扩展到以结构化 CoT 为核心的第一版数据集，并完成首轮正式训练
+- 生成当前标准数据集 `s800`：
+  - 对齐源样本 `400` 条
+  - 视图扩展后 train/val/test 共 `800` 条
+- 完成主线 `s800` LoRA 训练：
+  - `runs/20260515_210429/checkpoints/checkpoint-40`
 
-## Agreed Data Direction
+## 当前认可的数据方向
 
-- Keep `structured_cot` as the current main supervision target because it is the most controllable, easiest to validate, and most aligned with the near-term experiment goal.
-- Treat the current standard training task as two input views mapping to the same target style:
-  - `modern_question -> structured_cot + answer`
-  - `classical_question -> structured_cot + answer`
-- Do **not** treat the base model's natural `<think>` as `modern_cot` training labels.
-- Reserve `modern_cot` / `classical_cot` as future supervised targets for later ablation, separate from baseline natural reasoning traces.
-- Use the current large-scale test to answer one narrow question first: whether structured supervision plus classical/modern input views improves behavior relative to baseline.
+- 保留 `structured_think` 作为现阶段最可控的结构化思维监督目标，因为它最容易校验，也最符合当前实验目标
+- 当前标准训练任务定义为两个输入视图映射到同一目标风格：
+  - `modern_question -> structured_think + answer`
+  - `classical_question -> structured_think + answer`
+- 不把基座模型天然产生的 `<think>` 当成训练标签
+- 当前大规模测试先回答一个窄问题：
+  - 结构化监督加上白话/文言输入视图，是否比 baseline 更强
 
-## 2026-05-16 Evaluation Update
+## 2026-05-16 评测更新
 
-- Ran a first full comparison on `data/final/test_s800.jsonl` with `max_tokens=256`.
-- Observed `baseline=23.75%` and `finetuned=63.75%`, but this run was **not reliable enough for final judgment** because long `<think>` traces often consumed the decode budget before the final answer was emitted.
-- Confirmed the truncation issue by inspecting `weight_remaining` predictions: many responses contained correct intermediate arithmetic but were cut before a stable final answer string, which corrupted answer extraction.
-- Re-ran the same comparison with `max_tokens=512` and a slightly more robust extraction rule at `runs/20260516_150218_compare_s800_full_mt512`.
+- 首次在 `data/final/test_s800.jsonl` 上做全量比较，`max_tokens=256`
+- 得到 `baseline=23.75%`、`finetuned=63.75%`
+- 但这轮不能作为最终结论，因为长 `<think>` 常常耗尽解码预算，导致最终答案没有稳定输出
+- 通过人工检查 `weight_remaining` 样本确认了这个问题：
+  - 中间计算经常是对的
+  - 但最终答案串被截断
+  - 从而污染规则抽取结果
+- 之后用 `max_tokens=512` 重新评测：
+  - `runs/20260516_150218_compare_s800_full_mt512`
 
-### Corrected Rule-Based Full-Test Result
+### 修正后的规则评测结果
 
-- baseline: `44/80 = 55.0%`
-- finetuned: `77/80 = 96.25%`
+- baseline：`44/80 = 55.0%`
+- finetuned：`77/80 = 96.25%`
 
-### Corrected Rule-Based Finetuned Per-Family Accuracy
+### 修正后的微调模型分题型结果
 
-- `give_away`: `100%`
-- `box_total`: `100%`
-- `equal_division`: `85.7%`
-- `unit_price`: `92.9%`
-- `bundle_count`: `100%`
-- `weight_remaining`: `100%`
+- `give_away`：`100%`
+- `box_total`：`100%`
+- `equal_division`：`85.7%`
+- `unit_price`：`92.9%`
+- `bundle_count`：`100%`
+- `weight_remaining`：`100%`
 
-### Corrected Rule-Based Finetuned View Accuracy
+### 修正后的微调模型分视图结果
 
-- modern: `100%`
-- classical: `92.5%`
+- modern：`100%`
+- classical：`92.5%`
 
-## Current Interpretation
+## 当前理解
 
-- The current `s800` structured-coT dataset is directionally very strong on its own synthetic distribution.
-- The main residual problem is no longer basic arithmetic correctness; it is output control.
-- Both baseline and finetuned models still retain the Qwen default `<think>` behavior, which causes:
-  - verbose generations
-  - unstable final-answer emission
-  - evaluation sensitivity to decode length
-- Therefore, the next iteration must optimize both:
-  - data diversity
-  - target-format discipline
-  - evaluation robustness
+- 当前 `s800` 结构化 CoT 数据集在其合成分布内已经非常强
+- 当前主要残留问题不再是基础算术能力，而是输出控制
+- baseline 和 finetuned 都保留了 Qwen 默认的 `<think>` 行为，这会带来：
+  - 输出过长
+  - 最终答案不稳定
+  - 评测对解码长度敏感
+- 因此下一轮必须同时优化：
+  - 数据多样性
+  - 目标格式纪律
+  - 评测鲁棒性
 
-## 2026-05-16 Evaluation Pipeline Update
+## 2026-05-16 评测管线更新
 
-- The formal evaluation pipeline is now upgraded to a two-stage design:
-  - Stage 1: rule-based numeric answer extraction and exact-match scoring
-  - Stage 2: `DeepSeek V4 Flash` review for mismatched or selected samples
-- This change is motivated by a concrete failure mode already observed in baseline outputs:
-  - the model may reason correctly
-  - the final answer may be buried inside a long response
-  - rule-based extraction may therefore underestimate true answer correctness
-- The new standard evaluation script is `scripts/eval_compare_full.py`.
-- It now supports:
-  - direct generation + evaluation
-  - reusing existing prediction files from an older run
-  - `DeepSeek V4 Flash` review for `mismatches` or `all` samples
-  - separate reporting of rule accuracy and LLM-reviewed final accuracy
+- 正式评测管线升级为两阶段：
+  - 第一阶段：规则抽取数值答案并做精确匹配
+  - 第二阶段：使用 `DeepSeek V4 Flash` 对错例或指定样本做复核
+- 这么做的原因是 baseline 已经暴露出一个明确问题：
+  - 模型可能推理正确
+  - 但最终答案埋在长输出里
+  - 导致纯规则抽取低估真实正确率
+- 新的标准评测脚本是：
+  - `scripts/eval_compare_full.py`
+- 当前它支持：
+  - 直接生成并评测
+  - 复用旧 run 的 prediction 文件
+  - 对 `mismatches` 或 `all` 样本做 `DeepSeek V4 Flash` 复核
+  - 分别汇报规则正确率和 LLM 复核后正确率
 
-## 2026-05-16 Full DeepSeek Review Result
+### 2026-05-16 全量 DeepSeek 复核结果
 
-- Reused the saved `512`-token prediction files and ran full mismatch review at `runs/20260516_full_llm_review`.
-- Review setting:
-  - rule stage first
-  - `DeepSeek V4 Flash` reviews all rule-mismatch cases
-- Baseline review outcome:
-  - rule-based: `44/80 = 55.0%`
-  - LLM-reviewed final: `72/80 = 90.0%`
-  - reviewed mismatch cases: `36`
-  - changed from incorrect to correct: `28`
-- Finetuned review outcome:
-  - rule-based: `77/80 = 96.25%`
-  - LLM-reviewed final: `80/80 = 100%`
-  - reviewed mismatch cases: `3`
-  - changed from incorrect to correct: `3`
+- 复用了 `512` token 版本的已保存 prediction
+- 在 `runs/20260516_full_llm_review` 上完成 mismatch 复核
+- baseline：
+  - 规则评测：`55.0%`
+  - LLM 复核后：`90.0%`
+  - 复核错例数：`36`
+  - 从错改为对：`28`
+- finetuned：
+  - 规则评测：`96.25%`
+  - LLM 复核后：`100%`
+  - 复核错例数：`3`
+  - 从错改为对：`3`
 
-### LLM-Reviewed Baseline Final Accuracy
+### baseline 的 LLM 复核后结果
 
-- by family:
-  - `give_away`: `78.6%`
-  - `box_total`: `100%`
-  - `equal_division`: `100%`
-  - `unit_price`: `64.3%`
-  - `bundle_count`: `100%`
-  - `weight_remaining`: `100%`
-- by view:
-  - modern: `100%`
-  - classical: `80%`
+- 分题型：
+  - `give_away`：`78.6%`
+  - `box_total`：`100%`
+  - `equal_division`：`100%`
+  - `unit_price`：`64.3%`
+  - `bundle_count`：`100%`
+  - `weight_remaining`：`100%`
+- 分视图：
+  - modern：`100%`
+  - classical：`80%`
 
-### LLM-Reviewed Finetuned Final Accuracy
+### finetuned 的 LLM 复核后结果
 
-- by family: all `100%`
-- by view:
-  - modern: `100%`
-  - classical: `100%`
+- 分题型：全部 `100%`
+- 分视图：
+  - modern：`100%`
+  - classical：`100%`
 
-## Updated Conclusion
+## 更新后的阶段性结论
 
-- The gap between rule-based scoring and LLM-reviewed scoring is very large for the baseline model, which proves that baseline absolute accuracy was heavily underestimated by numeric extraction alone.
-- The finetuned model is much less affected by this issue, because it is more likely to emit an explicit and stable final answer.
-- Therefore, later reports should present **both**:
-  - rule-based accuracy
-  - LLM-reviewed final accuracy
-- For the current `s800` task distribution, the mainline LoRA model is now best described as:
-  - rule-based strong
-  - LLM-reviewed essentially saturated
-  - still weak in output control rather than problem solving
+- baseline 的规则评测和 LLM 复核结果差距很大，说明单纯数值抽取严重低估了它的真实能力
+- finetuned 模型受这个问题影响小得多，因为它更倾向于输出明确且稳定的最终答案
+- 因此后续报告必须同时展示：
+  - 规则正确率
+  - LLM 复核后正确率
+- 在当前 `s800` 分布上，主线 LoRA 模型更适合被描述为：
+  - 规则评测很强
+  - LLM 复核后几乎饱和
+  - 主要短板已从“不会做题”转为“输出控制”
 
-## Immediate Next Steps
+## 2026-05-16 think 监督方向更新
 
-- Keep `s800` as the current in-distribution baseline dataset.
-- Use `scripts/eval_compare_full.py` as the standard full comparison entrypoint.
-- Report at least three metrics in all later experiments:
-  - `Rule-based Accuracy`
-  - `LLM-reviewed Final Accuracy`
-  - `Answer Marker Rate`
-- Use `DeepSeek V4 Flash` as the standard lightweight review model for difficult evaluation cases.
-- Prepare the next dataset iteration to improve classical robustness and reduce reliance on long post-training `<think>` traces.
+- 明确确认了旧管线的关键缺口：
+  - 训练目标只包含 `structured_think + answer`
+  - 并没有显式监督 `<think>...</think>` 内部内容
+- 同时确认了已安装的 Swift 模板行为：
+  - Qwen3.5 默认开启 thinking mode
+  - 会自动插入 thinking prefix
+- 因而旧实验的提升应解释为：
+  - 可见答案行为改善
+  - 而不是 `think` 语言风格真正被对齐
+
+### 新的显式 think 监督方案
+
+- 新增第二套数据集变体：
+  - `s800_think`
+- 每条对齐源样本新增字段：
+  - `structured_think`
+  - `modern_think`
+  - `classical_think`
+- think-supervised 目标格式显式定义为：
+  - `modern_question -> <think>modern_think</think> + 答案`
+  - `classical_question -> <think>classical_think</think> + 答案`
+
+### 新增支撑脚本
+
+- `scripts/generate_dataset.py`
+  - 支持 `--variant visible|think`
+  - 支持 `--think-style by_view|structured`
+- `scripts/validate_dataset.py`
+  - 支持 `--expect-think-tags`
+- `scripts/train_lora_local.py`
+  - 支持 `--dataset-tag s800_think`
+- `scripts/inspect_think_samples.py`
+  - 用于快速抽样观察白话/文言 `think` 输出
+
+### 当时的直接目标
+
+- 先跑一个 `s800_think` 小规模 pilot
+- 在全量训练前验证三件事：
+  - `<think>` 是否由英文转为中文
+  - 白话/文言输入是否真的控制思维风格
+  - 答案正确率是否仍然稳定
+
+## 2026-05-17 think 监督 pilot 正式结果
+
+- 完成第一轮显式 think-supervised pilot：
+  - run dir：`runs/20260517_002714_think_pilot`
+  - checkpoint：`runs/20260517_002714_think_pilot/checkpoints/checkpoint-40`
+- 最终训练状态：
+  - `train_runtime = 1451s`
+  - `eval_loss = 0.00076153`
+  - `eval_token_acc = 1.0`
+
+### 定性结果
+
+- 这轮 pilot 实现了之前缺失的目标行为：
+  - 白话题会触发白话中文 `<think>`
+  - 文言题会触发文言中文 `<think>`
+  - 抽样中不再看到默认英文 think 痕迹
+
+### 样例证据
+
+- 白话题：
+  - 题目：`小明有12颗糖，送给小红5颗，还剩几颗？`
+  - 输出 think：`原来有12颗糖，送给小红5颗，所以用减法：12-5=7。`
+- 文言题：
+  - 题目：`明有糖12颗，遗红5颗，尚余几何？`
+  - 输出 think：`初有12颗，遗5颗，故12-5=7。`
+
+### 在 `test_s800_think` 上的定量结果
+
+- 对比 run：
+  - `runs/20260517_113430_compare_s800_think_checkpoint40`
+- 规则评测 baseline：
+  - `44/80 = 55.0%`
+- 规则评测 finetuned：
+  - `80/80 = 100%`
+
+### 补充说明
+
+- 在 think 格式测试集上，微调模型的输出控制也显著改善：
+  - `answer_marker_rate = 1.0`
+  - `avg_chars = 50.96`
+  - `avg_lines = 5.0`
+- baseline 仍然保留原先问题：
+  - 输出很长
+  - 最终答案不稳定
+  - classical view 明显更弱
+
+## 当前下一步重点
+
+- think 监督这条路线已经被验证为技术上可行
+- 当前下一优先级转为仓库规范化，目标是让：
+  - 负责造数据的同学能扩展数据而不破坏训练主线
+  - 负责深度评测的同学能加指标而不污染核心训练逻辑
+  - 所有实验产物都能稳定追溯、方便横向比较
+
+## 2026-05-17 仓库规范化第一阶段推进
+
+- 新增并统一了仓库公共模块：
+  - `src/common/paths.py`
+  - `src/common/naming.py`
+  - `src/common/schema.py`
+- 把数据、训练、评测、抽样脚本接入统一命名规则，后续新 run 自动按阶段生成目录名
+- 新增中文文档入口：
+  - `docs/README.md`
+  - `docs/TEAM_SYNC_LOG.md`
+- 明确并固化当前命名口径：
+  - 所有显式思维监督字段统一用 `xxx_think`
+  - `structured_cot` 仅作为历史兼容字段保留
+- 当前仓库仍保持旧实验结果不变，规范化只影响后续新增数据和新增 run
+
+## 2026-05-17 AutoDL 全链路参考 run
+
+- 为了让后续组员有可以直接参考的训练样板，新增了两类参考 run：
+  - `smoke` 参考：验证全链路是否完整可用
+  - `reference` 参考：作为正式训练参数模板
+
+### smoke 参考 run
+
+- run 目录：
+  - `runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
+- 目标：
+  - 验证 `run_config.json`
+  - 验证 checkpoint 正常产出
+  - 验证 `last_checkpoint.txt`
+  - 验证训练入口、数据入口、LoRA、CUDA、Swift 模板全链路可跑
+- 结果：
+  - 已完整跑通
+  - 最终日志显示：
+    - `train_runtime = 445.4s`
+    - `train_loss = 1.652`
+    - `eval_loss = 1.083`
+    - `eval_token_acc = 0.7705`
+
+### smoke 配置的经验教训
+
+- 该 run 使用了非常高的评测频率：
+  - `save_steps=1`
+  - `eval_steps=1`
+- 这虽然适合作为“教学型样板”，方便观察每一步如何产生产物，但并不适合作为正式训练默认配置
+- 原因是：
+  - 即使训练步数很少，只要每一步都跑完整验证集，总耗时依然会明显膨胀
+
+### formal reference run
+
+- 已启动一条正式参考 run，供后续组员直接对照标准配置：
+  - `run_tag=reference_v1`
+- 参数口径：
+  - `dataset_tag=s800_think`
+  - `max_length=1024`
+  - `learning_rate=1e-4`
+  - `gradient_accumulation_steps=16`
+  - `num_train_epochs=1.0`
+  - `save_steps=25`
+  - `eval_steps=25`
+  - `logging_steps=5`
+- 这条 run 的用途是：
+  - 给后续正式实验提供标准训练模板
+  - 避免队友误用 smoke 参数

@@ -1,16 +1,21 @@
+from __future__ import annotations
+
 import argparse
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
-from peft import PeftModel
-from swift import get_model_processor, get_template
-from swift.infer_engine import InferRequest, RequestConfig, TransformersEngine
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.common.naming import DEFAULT_MODEL_TAG, dataset_file, make_run_dir
+from src.common.paths import ROOT
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
 SYSTEM = '你是一个擅长中文数学应用题的助手，请尽量给出简洁且正确的答案。'
@@ -19,7 +24,8 @@ DEFAULT_DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument('--root', type=Path, default=ROOT)
+    parser.add_argument('--dataset-tag', type=str, default='s800')
     parser.add_argument('--test-file', type=Path, default=None)
     parser.add_argument('--checkpoint', type=Path, required=False)
     parser.add_argument('--existing-run-dir', type=Path, default=None)
@@ -29,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--top-p', type=float, default=1.0)
     parser.add_argument('--top-k', type=int, default=20)
     parser.add_argument('--repetition-penalty', type=float, default=1.0)
-    parser.add_argument('--tag', type=str, default='compare_full')
+    parser.add_argument('--run-tag', type=str, default='rule')
     parser.add_argument('--limit', type=int, default=None)
     parser.add_argument('--llm-review-mode', choices=['none', 'mismatches', 'all'], default='none')
     parser.add_argument('--llm-review-model', type=str, default='deepseek-v4-flash')
@@ -41,6 +47,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def build_engine(adapter: str | None, max_batch_size: int):
+    from peft import PeftModel
+    from swift import get_model_processor, get_template
+    from swift.infer_engine import TransformersEngine
+
     model, tokenizer = get_model_processor(MODEL_ID)
     if adapter:
         model = PeftModel.from_pretrained(model, adapter)
@@ -338,12 +348,17 @@ def main() -> None:
     else:
         if not args.checkpoint:
             raise ValueError('--checkpoint is required unless --existing-run-dir is provided')
-        test_file = (args.test_file or (root / 'data' / 'final' / 'test_s800.jsonl')).resolve()
+        test_file = (args.test_file or dataset_file('test', args.dataset_tag)).resolve()
         rows = load_rows_from_test_file(test_file, args.limit)
+        from swift.infer_engine import InferRequest
         requests = [InferRequest(messages=[{'role': 'user', 'content': row['messages'][1]['content']}]) for row in rows]
-        run_dir = root / 'runs' / (datetime.now().strftime('%Y%m%d_%H%M%S') + f'_{args.tag}')
-        (run_dir / 'predictions').mkdir(parents=True, exist_ok=True)
-        (run_dir / 'metrics').mkdir(parents=True, exist_ok=True)
+        run_dir = make_run_dir(
+            stage='eval',
+            dataset_tag=args.dataset_tag,
+            model_tag=DEFAULT_MODEL_TAG,
+            suffix=args.run_tag,
+            base_dir=root / 'runs',
+        )
         baseline_rows = run_model('baseline', None, requests, rows, run_dir, args)
         finetuned_rows = run_model('finetuned', str(args.checkpoint), requests, rows, run_dir, args)
         checkpoint = str(args.checkpoint)
@@ -370,4 +385,7 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    if '--help' in sys.argv or '-h' in sys.argv:
+        parse_args()
+        raise SystemExit(0)
     main()
