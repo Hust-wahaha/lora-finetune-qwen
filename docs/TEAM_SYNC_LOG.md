@@ -58,7 +58,7 @@
 
 ## 示例
 
-## Codex | 2026-05-17 18:00
+## Zhuoya Wang_with_codex | 2026-05-17 18:00
 
 ### 本次工作
 - 跑通 `s800_think` 的显式 `think` 监督
@@ -92,7 +92,7 @@
 - 继续扩充数据集版本，同时保持命名与 schema 稳定
 - 让评测同学基于统一目录和字段规范补深度指标
 
-## Codex | 2026-05-17 20:35
+## Zhuoya Wang_with_codex | 2026-05-17 20:35
 
 ### 本次工作
 - 在 AutoDL 上补跑一条全链路 smoke 训练参考
@@ -114,7 +114,7 @@
 - smoke 命令：`.venv/bin/python scripts/train_lora_local.py --dataset-tag s800_think --run-tag smoke_ref --max-length 512 --num-train-epochs 0.05 --gradient-accumulation-steps 8 --save-steps 1 --eval-steps 1 --logging-steps 1`
 - smoke 输出目录：`runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
 - formal 命令：`.venv/bin/python scripts/train_lora_local.py --dataset-tag s800_think --run-tag reference_v1 --max-length 1024 --learning-rate 1e-4 --train-batch-size 1 --eval-batch-size 1 --gradient-accumulation-steps 16 --num-train-epochs 1.0 --save-steps 25 --eval-steps 25 --logging-steps 5`
-- formal 输出目录：待运行完成后补记
+- formal 输出目录：`runs/20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
 
 ### 结果与结论
 - smoke 训练已完整跑通
@@ -134,14 +134,14 @@
   - `eval_steps=1` 虽然适合教学观察，但会显著拖慢总时长，不能作为正式默认配置
 
 ### 风险 / 遗留问题
-- formal reference run 仍在进行中，完成后需要补充最终 run 目录与结果摘要
 - 远端命令应统一显式使用 `.venv/bin/python`，不要依赖交互 shell 的 PATH
+- 当前文档与仓库结构已适合组员接手，但更深入的评测维度仍待后续组员扩展
 
 ### 建议下一步
-- 等 formal reference run 完成后，把其输出目录、核心指标和推荐使用场景补进 README 与进度文档
 - 后续组员新增训练实验时，优先参考 formal run，不要直接照抄 smoke 参数
+- 若新增数据方向，先保证 `dataset_tag`、`xxx_think` 命名和 schema 规则不被破坏
 
-## Codex | 2026-05-17 22:21
+## Zhuoya Wang_with_codex | 2026-05-17 22:21
 
 ### 本次工作
 - 补记 `reference_v1` 正式参考 run 的最终结果
@@ -181,3 +181,32 @@
 ### 建议下一步
 - 后续若新增数据方向，先保证 `dataset_tag`、`xxx_think` 命名和 schema 规则不被破坏
 - 新实验默认沿用 `reference_v1` 参数，再按实验目标做局部改动
+
+## Zhuoya Wang_with_codex | 2026-05-17 22:35
+
+### 本次工作
+- 统一团队协作日志中的历史、当前与未来署名规范
+- 补全中间日志条目中已经过时的“待补记”状态
+
+### 为什么这样做
+- 协作日志是组内长期接龙文档，署名必须统一，否则后续追溯容易混乱
+- 已经完成的事项不应该继续保留“待补记”状态，否则会误导队友判断当前进度
+
+### 修改/涉及文件
+- `docs/TEAM_SYNC_LOG.md`
+
+### 实验或运行信息
+- 机器：本地文档整理
+- 命令：无
+- 输出目录：无
+
+### 结果与结论
+- 所有历史与当前 `Codex` 署名均已统一为 `Zhuoya Wang_with_codex`
+- 示例、历史条目、后续接龙口径现在一致
+- `formal` 参考 run 的输出目录与状态在日志中已补齐，不再存在“待补记”残留
+
+### 风险 / 遗留问题
+- 无新增风险
+
+### 建议下一步
+- 以后所有由你与我协同完成的日志条目，统一继续使用 `Zhuoya Wang_with_codex`
