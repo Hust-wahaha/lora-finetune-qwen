@@ -335,12 +335,17 @@
 
 - 评测 run：
   - `runs/20260518_232002_eval_s800_think_qwen3.5-0.8b_reference_v1_rule_gpu_fixed`
-- baseline：
+- 规则评测 baseline：
   - `55.0%`
-- finetuned：
+- 规则评测 finetuned：
+  - `100%`
+- mismatch 复核后 baseline：
+  - `100%`
+- mismatch 复核后 finetuned：
   - `100%`
 
 ### 结论
 
 - `reference_v1` 不只是提升了最终答案稳定性，也把 `<think>` 内部内容从英文长推理改成了受监督的中文思维输出
 - 这说明当前数据与训练方式确实实现了“显式监督 think 内容”的目标
+- 同时也说明 baseline 的 `55%` 只是规则抽取口径偏低，经过 LLM 复核后其真实正确率同样可以回到 `100%`

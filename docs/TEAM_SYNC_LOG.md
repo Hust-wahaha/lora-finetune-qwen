@@ -210,9 +210,13 @@
 - 正式规则评测结果：
   - baseline `55.0%`
   - finetuned `100%`
+- mismatch 复核后：
+  - baseline `100%`
+  - finetuned `100%`
 
 ### 风险 / 遗留问题
 - 后续如果新增更复杂的题型或更强压缩目标，还需要再做新的评测与 case study
+- baseline 的 `55%` 只是规则抽取口径偏低，不是最终真实正确率
 
 ### 建议下一步
 - 如果继续扩数据，优先保持当前 `xxx_think` 命名和 `reference_v1` 的训练/评测口径一致
