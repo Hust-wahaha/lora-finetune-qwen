@@ -40,9 +40,42 @@
 ├── src/                       # 公共路径、命名、schema 等可复用逻辑
 ├── runs/                      # 训练与评测产物
 ├── scripts/                   # 数据生成、训练、评测脚本
-├── ms-swift/                  # 训练框架依赖
+├── pyproject.toml             # uv/pyproject 依赖入口
+├── requirements.txt           # 兜底依赖清单
 └── README.md
 ```
+
+## 环境复现
+
+新成员优先用 `uv` 复现环境：
+
+```bash
+uv sync
+```
+
+如果只想快速安装依赖，也可以：
+
+```bash
+uv pip install -r requirements.txt
+```
+
+统一用项目内 Python 执行脚本：
+
+```bash
+uv run python scripts/validate_dataset.py data/final/train_s800.jsonl
+uv run python scripts/train_lora_local.py --dataset-tag s800_think
+```
+
+说明：
+
+- `ms-swift` 是外部依赖包，对应代码里的 `import swift`
+- AutoDL 当前实测环境版本见下：
+  - `Python 3.12.3`
+  - `torch 2.11.0+cu130`
+  - `ms_swift 4.1.3`
+  - `transformers 5.6.2`
+- AutoDL 上训练和评测优先用 Linux 环境
+- 本地如果只做数据整理和文档查看，也建议先把这套依赖装起来
 
 ## 关键脚本
 

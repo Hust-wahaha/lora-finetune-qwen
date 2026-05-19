@@ -218,6 +218,36 @@ python scripts/inspect_think_samples.py --checkpoint <checkpoint_path> --dataset
 禁止的做法：
 
 - 不把重要结论只留在微信或口头交流里
+
+## 七、依赖与环境
+
+- 仓库当前采用 `uv + pyproject.toml` 作为主环境入口
+- 新成员优先执行：
+
+```bash
+uv sync
+```
+
+- 兜底安装方式：
+
+```bash
+uv pip install -r requirements.txt
+```
+
+- 代码里实际会用到的核心外部依赖包括：
+  - `ms-swift`
+  - `torch`
+  - `transformers`
+  - `peft`
+  - `datasets`
+  - `accelerate`
+- `ms-swift` 是外部包，不是仓库内目录；代码中的 `import swift` 就来自它
+- AutoDL 当前实测环境版本：
+  - `Python 3.12.3`
+  - `torch 2.11.0+cu130`
+  - `ms_swift 4.1.3`
+  - `transformers 5.6.2`
+- AutoDL 上训练和评测优先用 Linux 环境，统一通过 `uv run` 或 `.venv/bin/python` 启动
 - 不覆盖他人日志条目
 - 不只写“已完成”，必须写清楚做了什么、为什么、改了哪些文件、结果是什么
 
