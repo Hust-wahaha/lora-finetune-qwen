@@ -165,6 +165,8 @@ def run_model(
     run_dir: Path,
     args: argparse.Namespace,
 ) -> list[dict]:
+    from swift.infer_engine import RequestConfig
+
     engine = build_engine(adapter, args.max_batch_size)
     request_config = RequestConfig(
         max_tokens=args.max_tokens,

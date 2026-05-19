@@ -182,6 +182,41 @@
 - 后续若新增数据方向，先保证 `dataset_tag`、`xxx_think` 命名和 schema 规则不被破坏
 - 新实验默认沿用 `reference_v1` 参数，再按实验目标做局部改动
 
+## Zhuoya Wang_with_codex | 2026-05-19 10:20
+
+### 本次工作
+- 在 GPU 恢复后，补跑 `reference_v1` 的 `think` 抽样与正式评测
+- 把最新结果补进项目进度文档和协作日志
+
+### 为什么这样做
+- 需要确认 `reference_v1` 不仅在答案上有效，也在 `<think>` 内容上真的发生了变化
+- 既然模型与评测都已经跑完，就应该把最终结论写入正式文档，方便后续组员直接查看
+
+### 修改/涉及文件
+- `docs/PROJECT_PROGRESS.md`
+- `docs/TEAM_SYNC_LOG.md`
+
+### 实验或运行信息
+- 机器：AutoDL RTX 4090 24GB
+- `think` 抽样 run：
+  - `runs/20260518_230355_inspect_s800_think_qwen3.5-0.8b_reference_v1_base_gpu`
+  - `runs/20260518_230359_inspect_s800_think_qwen3.5-0.8b_reference_v1_ft_gpu`
+- 正式评测 run：
+  - `runs/20260518_232002_eval_s800_think_qwen3.5-0.8b_reference_v1_rule_gpu_fixed`
+
+### 结果与结论
+- 基座模型的 `think` 仍是英文长推理
+- `reference_v1` 的 `think` 已稳定变为中文，并能跟随白话/文言题面切换
+- 正式规则评测结果：
+  - baseline `55.0%`
+  - finetuned `100%`
+
+### 风险 / 遗留问题
+- 后续如果新增更复杂的题型或更强压缩目标，还需要再做新的评测与 case study
+
+### 建议下一步
+- 如果继续扩数据，优先保持当前 `xxx_think` 命名和 `reference_v1` 的训练/评测口径一致
+
 ## Zhuoya Wang_with_codex | 2026-05-17 22:35
 
 ### 本次工作
