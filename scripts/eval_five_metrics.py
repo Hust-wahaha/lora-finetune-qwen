@@ -14,6 +14,58 @@
 `--include-baseline` 自动追加 `baseline:none:none`（不加 LoRA）。
 
 对应课设主线诉求："设极小 max_tokens，观察 CoT 完整性与最终推理准确率"。
+
+命令行示例
+==========
+
+完整扫描（两组 LoRA + baseline，5 个 max_tokens 档位）：
+
+    uv run python scripts/eval_five_metrics.py \\
+        --model modern_lora:runs/<run>/checkpoints/checkpoint-XX:modern \\
+        --model classical_lora:runs/<run>/checkpoints/checkpoint-YY:classical \\
+        --include-baseline \\
+        --max-tokens-list 32,64,128,256,512 \\
+        --run-tag window_sweep
+
+本地 smoke（限 8 条样本，仅两个窗口，跳过 LLM 复核）：
+
+    uv run python scripts/eval_five_metrics.py \\
+        --model smoke:runs/<smoke_run>/checkpoints/checkpoint-16:modern \\
+        --include-baseline \\
+        --max-tokens-list 64,256 --limit 8 --run-tag smoke
+
+启用 DeepSeek CoT 质量评分（需环境变量 DEEPSEEK_API_KEY，可用 --existing-run-dir
+复用已有推理结果，避免重跑）：
+
+    DEEPSEEK_API_KEY=xxx uv run python scripts/eval_five_metrics.py \\
+        --existing-run-dir runs/<eval_run> \\
+        --model modern_lora:none:modern \\
+        --llm-review-mode cot_quality \\
+        --llm-review-max-cases 80
+
+结果保存
+========
+
+run 目录由 `make_run_dir(stage='eval', ...)` 生成，路径形如
+`runs/{timestamp}_eval_{dataset_tag}_qwen3.5-0.8b_{run_tag}/`，固定五个子目录。
+本脚本只写其中两个：
+
+- `predictions/{name}_mt{max_tokens}.json` —— 每个模型每个窗口一份原始模型输出
+  （id/view/gold/response），N 模型 × M 窗口共 N×M 个文件
+- `metrics/summary.json`                    —— 主结果，结构为
+  `results[model_name][str(max_tokens)] = {5 个一级指标 + by_view + detailed[]}`
+- `metrics/{name}_mt{max_tokens}_cot_quality.json` —— 仅启用 LLM 复核时生成，含
+  每条样本的 1-5 分与简短理由
+
+控制台输出
+==========
+
+只 print 一行 JSON headline 供日志抓取，**不打印指标对比表，也不出图**：
+
+    {"run_dir": "runs/...", "models": ["modern_lora", "baseline"],
+     "max_tokens_list": [32, 64, 128, 256, 512]}
+
+要看指标值或画图请读 `metrics/summary.json`，后续可用独立脚本渲染。
 """
 
 from __future__ import annotations
