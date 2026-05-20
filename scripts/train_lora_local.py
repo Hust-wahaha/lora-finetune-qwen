@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--save-steps', type=int, default=25)
     parser.add_argument('--eval-steps', type=int, default=25)
     parser.add_argument('--logging-steps', type=int, default=5)
+    parser.add_argument('--dataloader-num-workers', type=int, default=1)
     return parser.parse_args()
 
 
@@ -123,7 +124,7 @@ def main() -> None:
         num_train_epochs=args.num_train_epochs,
         save_total_limit=2,
         logging_steps=args.logging_steps,
-        dataloader_num_workers=1,
+        dataloader_num_workers=args.dataloader_num_workers,
         data_seed=42,
     )
 

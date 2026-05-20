@@ -7,3 +7,4 @@ artifacts/
 .ipynb_checkpoints/
 response_think.json
 response_wo-think.json
+CLAUDE.md
