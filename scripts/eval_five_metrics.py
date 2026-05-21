@@ -19,13 +19,25 @@
 ==========
 
 完整扫描（两组 LoRA + baseline，5 个 max_tokens 档位）：
-
+eg.
+AtuoDL:
     uv run python scripts/eval_five_metrics.py \\
         --model modern_lora:runs/<run>/checkpoints/checkpoint-XX:modern \\
         --model classical_lora:runs/<run>/checkpoints/checkpoint-YY:classical \\
         --include-baseline \\
         --max-tokens-list 32,64,128,256,512 \\
         --run-tag window_sweep
+
+Windows:
+    .\.venv\Scripts\python.exe scripts\eval_five_metrics.py `
+        --dataset-tag s800_think `
+        --model "m2m:runs\20260520_184554_train_s800_m2m_qwen3.5-0.8b_m2m_v1\checkpoints\checkpoint-40:modern" `
+        --model "c2m:runs\20260520_192446_train_s800_c2m_qwen3.5-0.8b_c2m_v1\checkpoints\checkpoint-40:modern" `
+        --include-baseline `
+        --max-tokens-list 16,32,64,128,256,512 `
+        --max-batch-size 4 `
+        --run-tag m2m_vs_c2m_mixed
+
 
 本地 smoke（限 8 条样本，仅两个窗口，跳过 LLM 复核）：
 
@@ -150,6 +162,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--llm-review-endpoint', type=str, default=DEFAULT_DEEPSEEK_ENDPOINT)
     parser.add_argument('--llm-review-max-cases', type=int, default=None)
     parser.add_argument('--llm-review-timeout', type=int, default=120)
+    parser.add_argument(
+        '--render-only', action='store_true',
+        help='Skip inference + metric recompute, just regenerate summary.md from an existing summary.json. Requires --existing-run-dir.',
+    )
     return parser.parse_args()
 
 
@@ -454,9 +470,169 @@ def load_existing(run_dir: Path, model_name: str, max_tokens: int) -> list[dict]
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def _fmt_pct(value) -> str:
+    if value is None:
+        return '-'
+    return f'{value * 100:.2f}%'
+
+
+def _fmt_score(value) -> str:
+    if value is None:
+        return '-'
+    return f'{value:.2f}'
+
+
+_EXPECTED_STYLE_ZH = {
+    'modern': '白话',
+    'classical': '文言',
+    'none': '不限',
+    'unknown': '未指定',
+    'mixed': '混合',
+}
+
+_LLM_REVIEW_MODE_ZH = {
+    'none': '未启用',
+    'cot_quality': '仅复核推理过程（CoT 完整时）',
+    'all': '全量复核',
+}
+
+
+def render_markdown_summary(summary: dict) -> str:
+    results = summary.get('results', {})
+    model_specs = summary.get('models', [])
+    model_names = [m['name'] for m in model_specs] or list(results.keys())
+    max_tokens_list = summary.get('decode_max_tokens_list', [])
+    views = ['modern', 'classical']
+    view_zh = {'modern': '白话题面', 'classical': '文言题面'}
+
+    lines: list[str] = []
+    lines.append(f'# 评测汇总 - {Path(summary.get("run_dir", "")).name}')
+    lines.append('')
+
+    # 基本信息
+    lines.append('## 基本信息')
+    lines.append('')
+    lines.append('| 项 | 值 |')
+    lines.append('|---|---|')
+    lines.append(f'| 数据集标签 | `{summary.get("dataset_tag")}` |')
+    lines.append(f'| 测试集文件 | `{summary.get("test_file")}` |')
+    # 顶层 count 已经去掉，从 results 任取一项的 per-result count（同一份测试集
+    # 各模型各 max_tokens 都是同一规模，挑哪个都行；取不到则 '-' 占位）。
+    _first_result = next(iter(next(iter(results.values()), {}).values()), {})
+    lines.append(f'| 测试样本数 | {_first_result.get("count", "-")} |')
+    lines.append(f'| 生成长度上限（tokens） | {", ".join(str(x) for x in max_tokens_list)} |')
+    review_mode = summary.get('llm_review_mode', 'none')
+    lines.append(f'| LLM 复核模式 | {_LLM_REVIEW_MODE_ZH.get(review_mode, review_mode)} |')
+    if model_specs:
+        expected_parts = [
+            f'`{m["name"]}`={_EXPECTED_STYLE_ZH.get(m.get("expected_style", "none"), m.get("expected_style"))}'
+            for m in model_specs
+        ]
+        lines.append(f'| 各模型预期推理风格 | {", ".join(expected_parts)} |')
+    lines.append('')
+
+    # 指标说明
+    lines.append('## 五个评测指标说明')
+    lines.append('')
+    lines.append('| 指标 | 衡量的是什么 |')
+    lines.append('|---|---|')
+    lines.append('| 答案准确率 | 规则从输出里抽取出的数值是否等于标准答案 |')
+    lines.append('| 推理过程完整率 | 输出里 `<think>…</think>` 标签是否成对出现（推理段没被截断） |')
+    lines.append('| 整体回答完整率 | 在前者基础上，还要出现「答案：」并以「。」结尾，即整段没被截 |')
+    lines.append('| 推理风格忠实率 | 推理过程的语言风格（白话/文言）是否与训练时设定的一致 |')
+    lines.append('| 英文漏出率 | 推理过程里是否混入了英文片段（值越低越好） |')
+    lines.append('')
+    lines.append('附加可选：**推理质量评分**为 DeepSeek 对推理过程内容打的 1-5 分（需开启 LLM 复核）。')
+    lines.append('')
+
+    # 整体表现
+    lines.append('## 整体表现（白话题与文言题合并统计）')
+    lines.append('')
+    lines.append('> 在同一份测试集上，每个模型在每档生成长度上限下的成绩。')
+    lines.append('> 表头中的"生成长度上限"指模型解码时允许的最大 token 数，截断会导致推理过程不完整。')
+    lines.append('')
+    lines.append('| 模型 | 生成长度上限 | 答案准确率 | 推理过程完整率 | 整体回答完整率 | 推理风格忠实率 | 英文漏出率 | 推理质量评分（均值） |')
+    lines.append('|---|---:|---:|---:|---:|---:|---:|---:|')
+    for name in model_names:
+        per_mt = results.get(name, {})
+        for mt in max_tokens_list:
+            metric = per_mt.get(str(mt))
+            if not metric:
+                continue
+            style = metric.get('style_faithfulness', {}) or {}
+            cot_q = metric.get('cot_quality_score') or {}
+            cot_q_val = cot_q.get('mean') if isinstance(cot_q, dict) and cot_q.get('enabled') else None
+            lines.append(
+                f'| `{name}` | {mt} | '
+                f'{_fmt_pct(metric.get("answer_accuracy"))} | '
+                f'{_fmt_pct(metric.get("cot_completeness_rate"))} | '
+                f'{_fmt_pct(metric.get("generation_completion_rate"))} | '
+                f'{_fmt_pct(style.get("faithfulness_rate"))} | '
+                f'{_fmt_pct(style.get("english_leak_rate"))} | '
+                f'{_fmt_score(cot_q_val)} |'
+            )
+    lines.append('')
+
+    # 分语言风格细看
+    lines.append('## 按输入题面语言风格分别看')
+    lines.append('')
+    lines.append('> 把测试集按输入题面是白话还是文言拆成两组分别统计，可以看出模型对哪种输入风格更擅长。')
+    lines.append('> 若一个模型在白话题面和文言题面上的表现接近，说明它对两种语言风格的泛化能力较强。')
+    lines.append('')
+    view_metric_specs = [
+        ('答案准确率', 'answer_accuracy'),
+        ('推理过程完整率', 'cot_completeness_rate'),
+        ('整体回答完整率', 'generation_completion_rate'),
+        ('推理风格忠实率', 'style_faithfulness_rate'),
+        ('英文漏出率', 'english_leak_rate'),
+    ]
+    for title, key in view_metric_specs:
+        lines.append(f'### {title}')
+        lines.append('')
+        lines.append(f'| 模型 | 生成长度上限 | {view_zh["modern"]} | {view_zh["classical"]} |')
+        lines.append('|---|---:|---:|---:|')
+        for name in model_names:
+            per_mt = results.get(name, {})
+            for mt in max_tokens_list:
+                metric = per_mt.get(str(mt))
+                if not metric:
+                    continue
+                by_view = metric.get('by_view', {}) or {}
+                cells = [_fmt_pct((by_view.get(v) or {}).get(key)) for v in views]
+                lines.append(f'| `{name}` | {mt} | {cells[0]} | {cells[1]} |')
+        lines.append('')
+
+    lines.append('---')
+    lines.append('')
+    lines.append('注释：')
+    lines.append('- `baseline` 表示未做任何 LoRA 微调的原始模型，作为对照参照。')
+    lines.append('- 百分号数字越高越好，**英文漏出率除外**（越低越好）。')
+    lines.append('- 表中"-"代表该项不适用（例如未指定预期风格的模型不计算"推理风格忠实率"，或未开启 LLM 复核时不计算"推理质量评分"）。')
+    lines.append('')
+
+    return '\n'.join(lines)
+
+
+def write_markdown_summary(run_dir: Path, summary: dict) -> Path:
+    md_path = run_dir / 'metrics' / 'summary.md'
+    md_path.write_text(render_markdown_summary(summary), encoding='utf-8')
+    return md_path
+
+
 def main() -> None:
     args = parse_args()
     root = args.root.resolve()
+
+    if args.render_only:
+        if not args.existing_run_dir:
+            raise ValueError('--render-only requires --existing-run-dir')
+        run_dir = args.existing_run_dir.resolve()
+        summary_path = run_dir / 'metrics' / 'summary.json'
+        summary = json.loads(summary_path.read_text(encoding='utf-8'))
+        md_path = write_markdown_summary(run_dir, summary)
+        print(json.dumps({'rendered_markdown': str(md_path)}, ensure_ascii=False))
+        return
+
     max_tokens_list = parse_max_tokens_list(args.max_tokens_list)
     model_specs = collect_models(args)
 
@@ -508,11 +684,13 @@ def main() -> None:
     }
     summary_path = run_dir / 'metrics' / 'summary.json'
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+    md_path = write_markdown_summary(run_dir, summary)
 
     headline = {
         'run_dir': summary['run_dir'],
         'models': [m['name'] for m in model_specs],
         'max_tokens_list': max_tokens_list,
+        'summary_md': str(md_path),
     }
     print(json.dumps(headline, ensure_ascii=False))
 
