@@ -51,6 +51,15 @@ PAIRINGS = [
     {'tag': 'c2s', 'input_view': 'classical', 'cot_style': 'structured', 'cot_field': 'structured_think'},
 ]
 
+# 源记录在派生时被读取的字段；缺一个都会让 derive_record 静默产空或抛 KeyError，
+# 因此在入口处提前显式校验。`messages` 有 fallback，不强求；`base_id` 也允许缺。
+REQUIRED_SOURCE_FIELDS = (
+    'id', 'view', 'family', 'answer',
+    'modern_question', 'classical_question',
+    'modern_think', 'classical_think', 'structured_think',
+)
+VALID_VIEW_VALUES = {'modern', 'classical'}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -64,6 +73,24 @@ def parse_args() -> argparse.Namespace:
 def read_jsonl(path: Path) -> list[dict]:
     with path.open('r', encoding='utf-8') as f:
         return [json.loads(line) for line in f if line.strip()]
+
+
+def validate_source_rows(rows: list[dict], path: Path) -> None:
+    if not rows:
+        raise ValueError(f'Empty source file: {path}')
+    for idx, row in enumerate(rows, start=1):
+        missing = [f for f in REQUIRED_SOURCE_FIELDS if f not in row]
+        if missing:
+            raise ValueError(
+                f'Source schema invalid at {path}:{idx} '
+                f'(id={row.get("id", "<missing>")!r}); missing fields: {missing}'
+            )
+        view = row['view']
+        if view not in VALID_VIEW_VALUES:
+            raise ValueError(
+                f'Unexpected view={view!r} at {path}:{idx} (id={row["id"]!r}); '
+                f'expected one of {sorted(VALID_VIEW_VALUES)}'
+            )
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -110,30 +137,39 @@ def main() -> None:
         'pairings': {},
     }
 
-    for pairing in PAIRINGS:
-        tag = pairing['tag']
-        per_tag_counts: dict[str, int] = {}
-        for split in SOURCE_SPLITS:
-            src_path = FINAL_DATA_DIR / f'{split}_{args.source_tag}.jsonl'
-            src_rows = read_jsonl(src_path)
-            # 仅保留与本 tag 输入视角匹配的源记录，避免 modern 与 classical 重复
-            picked = [r for r in src_rows if r.get('view') == pairing['input_view']]
+    # 按 tag 累计计数，最后再汇总到 summary。
+    per_tag_counts: dict[str, dict] = {p['tag']: {} for p in PAIRINGS}
+
+    # 外层按 split：每个源文件只读一次，再按 view 预分桶分发给各 pairing。
+    for split in SOURCE_SPLITS:
+        src_path = FINAL_DATA_DIR / f'{split}_{args.source_tag}.jsonl'
+        src_rows = read_jsonl(src_path)
+        validate_source_rows(src_rows, src_path)
+
+        rows_by_view: dict[str, list[dict]] = defaultdict(list)
+        for r in src_rows:
+            rows_by_view[r['view']].append(r)
+
+        for pairing in PAIRINGS:
+            tag = pairing['tag']
+            picked = rows_by_view.get(pairing['input_view'], [])
             derived = [derive_record(r, pairing) for r in picked]
             out_path = out_dir / f'{split}_s800_{tag}.jsonl'
             write_jsonl(out_path, derived)
-            per_tag_counts[split] = len(derived)
+            per_tag_counts[tag][split] = len(derived)
 
-            # 顺手统计 family 分桶，便于 sanity check
-            family_dist = defaultdict(int)
+            family_dist: dict[str, int] = defaultdict(int)
             for row in derived:
                 family_dist[row['family']] += 1
-            per_tag_counts[f'{split}_by_family'] = dict(sorted(family_dist.items()))
+            per_tag_counts[tag][f'{split}_by_family'] = dict(sorted(family_dist.items()))
 
+    for pairing in PAIRINGS:
+        tag = pairing['tag']
         summary['pairings'][f's800_{tag}'] = {
             'input_view': pairing['input_view'],
             'cot_style': pairing['cot_style'],
             'cot_field': pairing['cot_field'],
-            'counts': per_tag_counts,
+            'counts': per_tag_counts[tag],
         }
 
     summary_path = out_dir / 'summary.json'

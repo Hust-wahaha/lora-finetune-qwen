@@ -463,7 +463,6 @@ def main() -> None:
     if args.existing_run_dir:
         run_dir = args.existing_run_dir.resolve()
         test_file = args.test_file
-        rows_for_review: dict[tuple[str, int], list[dict]] = {}
     else:
         test_file = (args.test_file or dataset_file('test', args.dataset_tag)).resolve()
         rows = load_rows(test_file, args.limit)
@@ -474,7 +473,6 @@ def main() -> None:
             suffix=args.run_tag,
             base_dir=root / 'runs',
         )
-        rows_for_review = {}
 
     (run_dir / 'metrics').mkdir(parents=True, exist_ok=True)
     results: dict[str, dict] = {}
@@ -492,17 +490,17 @@ def main() -> None:
                 if engine is None:
                     engine = build_engine(adapter, args.max_batch_size)
                 pred_rows = run_inference(name, adapter, rows, mt, args, run_dir, engine=engine)
-            rows_for_review[(name, mt)] = pred_rows
             metrics = compute_metrics(pred_rows, expected_style=expected)
             apply_cot_quality(metrics, pred_rows, run_dir, name, mt, args)
             results[name][str(mt)] = metrics
         engine = None  # free GPU before next model
 
+    # 顶层不再放单一的 `count` —— 各 (model, max_tokens) 组合的样本数已经在
+    # `results[name][str(mt)]['count']` 里，per-result 才不会误导。
     summary = {
         'run_dir': str(run_dir),
         'dataset_tag': args.dataset_tag,
         'test_file': str(test_file) if test_file else None,
-        'count': len(next(iter(rows_for_review.values()))) if rows_for_review else 0,
         'decode_max_tokens_list': max_tokens_list,
         'llm_review_mode': args.llm_review_mode,
         'models': model_specs,
