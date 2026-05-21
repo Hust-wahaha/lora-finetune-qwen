@@ -102,7 +102,7 @@ BASELINE_SPEC = 'baseline:none:none'
 
 
 def parse_model_spec(raw: str) -> dict:
-    parts = raw.split(':')
+    parts = raw.rsplit(':', 2)
     if len(parts) != 3:
         raise ValueError(f'--model expects name:adapter:expected_style, got {raw!r}')
     name, adapter, expected = parts
