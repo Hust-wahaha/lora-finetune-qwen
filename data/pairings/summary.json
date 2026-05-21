@@ -1,0 +1,210 @@
+{
+  "source_tag": "s800_think",
+  "output_dir": "F:\\模式识别课设\\my_code\\lora-finetune-qwen\\data\\pairings",
+  "pairings": {
+    "s800_m2m": {
+      "input_view": "modern",
+      "cot_style": "modern",
+      "cot_field": "modern_think",
+      "counts": {
+        "train": 320,
+        "train_by_family": {
+          "box_total": 56,
+          "bundle_count": 48,
+          "equal_division": 56,
+          "give_away": 56,
+          "unit_price": 56,
+          "weight_remaining": 48
+        },
+        "val": 40,
+        "val_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        },
+        "test": 40,
+        "test_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        }
+      }
+    },
+    "s800_m2c": {
+      "input_view": "modern",
+      "cot_style": "classical",
+      "cot_field": "classical_think",
+      "counts": {
+        "train": 320,
+        "train_by_family": {
+          "box_total": 56,
+          "bundle_count": 48,
+          "equal_division": 56,
+          "give_away": 56,
+          "unit_price": 56,
+          "weight_remaining": 48
+        },
+        "val": 40,
+        "val_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        },
+        "test": 40,
+        "test_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        }
+      }
+    },
+    "s800_m2s": {
+      "input_view": "modern",
+      "cot_style": "structured",
+      "cot_field": "structured_think",
+      "counts": {
+        "train": 320,
+        "train_by_family": {
+          "box_total": 56,
+          "bundle_count": 48,
+          "equal_division": 56,
+          "give_away": 56,
+          "unit_price": 56,
+          "weight_remaining": 48
+        },
+        "val": 40,
+        "val_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        },
+        "test": 40,
+        "test_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        }
+      }
+    },
+    "s800_c2m": {
+      "input_view": "classical",
+      "cot_style": "modern",
+      "cot_field": "modern_think",
+      "counts": {
+        "train": 320,
+        "train_by_family": {
+          "box_total": 56,
+          "bundle_count": 48,
+          "equal_division": 56,
+          "give_away": 56,
+          "unit_price": 56,
+          "weight_remaining": 48
+        },
+        "val": 40,
+        "val_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        },
+        "test": 40,
+        "test_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        }
+      }
+    },
+    "s800_c2c": {
+      "input_view": "classical",
+      "cot_style": "classical",
+      "cot_field": "classical_think",
+      "counts": {
+        "train": 320,
+        "train_by_family": {
+          "box_total": 56,
+          "bundle_count": 48,
+          "equal_division": 56,
+          "give_away": 56,
+          "unit_price": 56,
+          "weight_remaining": 48
+        },
+        "val": 40,
+        "val_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        },
+        "test": 40,
+        "test_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        }
+      }
+    },
+    "s800_c2s": {
+      "input_view": "classical",
+      "cot_style": "structured",
+      "cot_field": "structured_think",
+      "counts": {
+        "train": 320,
+        "train_by_family": {
+          "box_total": 56,
+          "bundle_count": 48,
+          "equal_division": 56,
+          "give_away": 56,
+          "unit_price": 56,
+          "weight_remaining": 48
+        },
+        "val": 40,
+        "val_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        },
+        "test": 40,
+        "test_by_family": {
+          "box_total": 7,
+          "bundle_count": 6,
+          "equal_division": 7,
+          "give_away": 7,
+          "unit_price": 7,
+          "weight_remaining": 6
+        }
+      }
+    }
+  }
+}
