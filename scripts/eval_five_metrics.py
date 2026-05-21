@@ -20,7 +20,7 @@
 
 完整扫描（两组 LoRA + baseline，5 个 max_tokens 档位）：
 eg.
-AtuoDL:
+AutoDL:
     uv run python scripts/eval_five_metrics.py \\
         --model modern_lora:runs/<run>/checkpoints/checkpoint-XX:modern \\
         --model classical_lora:runs/<run>/checkpoints/checkpoint-YY:classical \\
@@ -518,7 +518,8 @@ def render_markdown_summary(summary: dict) -> str:
     lines.append(f'| 测试集文件 | `{summary.get("test_file")}` |')
     # 顶层 count 已经去掉，从 results 任取一项的 per-result count（同一份测试集
     # 各模型各 max_tokens 都是同一规模，挑哪个都行；取不到则 '-' 占位）。
-    _first_result = next(iter(next(iter(results.values()), {}).values()), {})
+    _any_model_results = next(iter(results.values()), {})
+    _first_result = next(iter(_any_model_results.values()), {})
     lines.append(f'| 测试样本数 | {_first_result.get("count", "-")} |')
     lines.append(f'| 生成长度上限（tokens） | {", ".join(str(x) for x in max_tokens_list)} |')
     review_mode = summary.get('llm_review_mode', 'none')
@@ -628,6 +629,12 @@ def main() -> None:
             raise ValueError('--render-only requires --existing-run-dir')
         run_dir = args.existing_run_dir.resolve()
         summary_path = run_dir / 'metrics' / 'summary.json'
+        if not summary_path.is_file():
+            raise FileNotFoundError(
+                f'--render-only 需要已有的评测产物，但找不到 {summary_path}。'
+                f'确认 --existing-run-dir={run_dir} 路径正确，且该 run 已经跑过完整评测'
+                f'（先去掉 --render-only 跑一次生成 metrics/summary.json，再用 --render-only 重渲染）。'
+            )
         summary = json.loads(summary_path.read_text(encoding='utf-8'))
         md_path = write_markdown_summary(run_dir, summary)
         print(json.dumps({'rendered_markdown': str(md_path)}, ensure_ascii=False))
