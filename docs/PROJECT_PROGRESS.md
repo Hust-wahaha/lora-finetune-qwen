@@ -349,3 +349,33 @@
 - `reference_v1` 不只是提升了最终答案稳定性，也把 `<think>` 内部内容从英文长推理改成了受监督的中文思维输出
 - 这说明当前数据与训练方式确实实现了“显式监督 think 内容”的目标
 - 同时也说明 baseline 的 `55%` 只是规则抽取口径偏低，经过 LLM 复核后其真实正确率同样可以回到 `100%`
+
+## 2026-05-27 公开数据集构建组件纳入仓库
+
+- 在原有合成模板数据 `s800 / s800_think` 主线之外，新增公开数据集构建入口：
+  - `scripts/build_dataset.py`
+  - `scripts/format_gsm8k_messages.py`
+- 新组件当前面向 GSM8K / Math23k 的数据增强与训练格式化：
+  - `build_dataset.py` 负责读取 `data/raw` 中的公开数据，调用 DeepSeek API 生成白话题面、文言题面、白话 think、文言 think、结构化 think
+  - `format_gsm8k_messages.py` 负责把增强后的 GSM8K split 数据展开为 `messages` 格式，并按 `data_type` 分文件输出
+- `build_dataset.py` 已支持 split 独立管理：
+  - 输出根目录通过 `--output-dir` 指定
+  - 不同数据集写入不同子目录，例如 `data/interim/gsm8k/`
+  - 每个 split 有独立文件和 checkpoint，例如 `train.jsonl`、`test.jsonl`、`checkpoint_train.jsonl`、`checkpoint_test.jsonl`
+- `limit + ratio` 规则已固定：
+  - `--limit` 指定 train 数量
+  - `--ratio` 指定 train:test 比例，默认 `8:2`
+  - 例如 `--limit 500 --ratio 8:2` 会计划生成约 `500` 条 train 与 `125` 条 test
+- `format_gsm8k_messages.py` 已支持多种题面 / think 风格组合：
+  - `modern`
+  - `classical`
+  - `modern2classical`
+  - `modern2structure`
+  - 以及 `classical2modern`、`classical2structure` 等扩展组合
+- 最终输出建议进入：
+  - `data/final/gsm8k_think/train/{data_type}.jsonl`
+  - `data/final/gsm8k_think/test/{data_type}.jsonl`
+- 这次更新的定位：
+  - 不是替代 `s800_think`
+  - 而是把后续大规模公开数据扩展的数据生产链路标准化
+  - 后续训练与评测仍需基于新增数据版本单独建立 `dataset_tag` 和 run 记录

@@ -249,3 +249,57 @@
 
 ### 建议下一步
 - 以后所有由你与我协同完成的日志条目，统一继续使用 `Zhuoya Wang_with_codex`
+
+## Zimo Tang | 2026-05-27 13:55
+
+### 本次工作
+- 将公开数据集构建组件纳入仓库脚本目录
+- 同步更新数据 schema、仓库规则、项目进度和 README
+- 明确 GSM8K / Math23k 从 raw 数据、API 增强、split checkpoint 到 final messages 数据的使用流程
+
+### 为什么这样做
+- 原有 `s800_think` 主线验证了显式 think 监督可行，但数据规模和来源仍偏合成模板
+- 后续需要扩展到 GSM8K / Math23k 等公开数据，同时保持 split、checkpoint、metadata、error ids 可追溯
+- 数据构建脚本已经在仓库外打磨完成，需要进入正式仓库文档体系，方便后续组员复用
+
+### 修改/涉及文件
+- `scripts/build_dataset.py`
+- `scripts/format_gsm8k_messages.py`
+- `README.md`
+- `pyproject.toml`
+- `requirements.txt`
+- `requirements-windows.txt`
+- `docs/README.md`
+- `docs/PROJECT_PROGRESS.md`
+- `docs/DATA_SCHEMA.md`
+- `docs/REPOSITORY_RULES.md`
+- `docs/TEAM_SYNC_LOG.md`
+
+### 实验或运行信息
+- 机器：本地 Windows
+- 命令：
+  - `python -m py_compile scripts/build_dataset.py scripts/format_gsm8k_messages.py`
+- 推荐数据增强命令：
+  - `python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim`
+- 推荐格式化命令：
+  - `python scripts/format_gsm8k_messages.py --input data/interim/gsm8k --output-dir data/final/gsm8k_think --data-types modern classical modern2classical modern2structure`
+- 输出目录：
+  - 中间增强数据：`data/interim/gsm8k/`
+  - 最终 messages 数据：`data/final/gsm8k_think/{train,test}/`
+
+### 结果与结论
+- 新增公开数据集两阶段构建流程：
+  - 第一阶段：`build_dataset.py` 生成 split 独立的增强数据和 checkpoint
+  - 第二阶段：`format_gsm8k_messages.py` 按 `data_type` 展开最终训练 JSONL
+- `--limit` 语义固定为 train 数量，`--ratio` 默认 `8:2` 用于推导 test 数量
+- 最终数据仍遵守显式 think 监督格式：
+  - `<think>{xxx_think}</think>`
+  - `答案：{answer}。`
+
+### 风险 / 遗留问题
+- `build_dataset.py` 调用 DeepSeek API，需要配置 `DEEPSEEK_API_KEY`
+- GSM8K 原始 parquet 读取需要 `pyarrow` 或 `fastparquet`，本次已将 `pyarrow` 加入依赖
+- `format_gsm8k_messages.py` 当前主要面向 GSM8K 增强输出；Math23k final messages 展开如需独立格式，还应补专门入口或泛化该脚本
+
+### 建议下一步
+- 根据gsm8k数据集跑实验

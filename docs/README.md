@@ -8,7 +8,7 @@
    先看主线目标、当前最好结果、已经验证过的结论与下一步重点。
 
 2. [DATA_SCHEMA.md](DATA_SCHEMA.md)
-   再看数据字段规范，明确哪些字段必填、哪些字段按任务可选，以及 `xxx_think` 的统一命名规则。
+   再看数据字段规范，明确哪些字段必填、哪些字段按任务可选，`xxx_think` 的统一命名规则，以及公开数据集增强后的最终 messages 结构。
 
 3. [REPOSITORY_RULES.md](REPOSITORY_RULES.md)
    直接看当前仓库规则、使用方法、命名规范和注意事项。
@@ -24,7 +24,7 @@
 - `PROJECT_PROGRESS.md`
   记录正式实验结论、方向变化、阶段性判断。
 - `DATA_SCHEMA.md`
-  记录数据字段规范、必填/可选规则与命名扩展规则。
+  记录数据字段规范、必填/可选规则、命名扩展规则，以及 GSM8K / Math23k 增强数据进入训练集前后的字段约定。
 - `REPOSITORY_RULES.md`
   记录当前仓库正式规则、使用方法和注意事项。
 - `PHASE1_EXECUTION_CHECKLIST.md`

@@ -31,6 +31,8 @@
 - 只放命令行入口脚本
 - 当前主入口包括：
   - `generate_dataset.py`
+  - `build_dataset.py`
+  - `format_gsm8k_messages.py`
   - `validate_dataset.py`
   - `train_lora_local.py`
   - `eval_compare_full.py`
@@ -127,6 +129,8 @@
 
 ### 数据生成
 
+合成模板数据：
+
 ```bash
 python scripts/generate_dataset.py --variant think --think-style by_view --dataset-tag s800_think
 ```
@@ -136,6 +140,52 @@ python scripts/generate_dataset.py --variant think --think-style by_view --datas
 - 生成 `data/interim/aligned_*.jsonl`
 - 生成 `data/final/train/val/test_*.jsonl`
 - 生成数据摘要 json
+
+公开数据集 API 增强：
+
+```bash
+python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim
+```
+
+作用：
+
+- 从 `data/raw/gsm8k` 或 `data/raw/Math23k` 读取原始数据
+- 调用 DeepSeek API 生成白话题面、文言题面、白话 think、文言 think、结构化 think
+- 在输出根目录下按数据集建子目录，例如：
+  - `data/interim/gsm8k/checkpoint_train.jsonl`
+  - `data/interim/gsm8k/checkpoint_test.jsonl`
+  - `data/interim/gsm8k/train.jsonl`
+  - `data/interim/gsm8k/test.jsonl`
+  - `data/interim/gsm8k/metadata.json`
+- `--limit` 表示 train 数量，`--ratio` 决定 test 数量；默认 `8:2`
+
+运行前要求：
+
+- 必须设置 `DEEPSEEK_API_KEY`
+- GSM8K 原始 parquet 读取需要 `pyarrow` 或 `fastparquet`；仓库依赖已加入 `pyarrow`
+- 建议先用 `--dry-run` 检查原始文件路径、split 配额和依赖状态
+
+GSM8K messages 格式化：
+
+```bash
+python scripts/format_gsm8k_messages.py \
+  --input data/interim/gsm8k \
+  --output-dir data/final/gsm8k_think \
+  --data-types modern classical modern2classical modern2structure
+```
+
+作用：
+
+- 将 API 增强 checkpoint 转换成训练可直接读取的 `messages` JSONL
+- 默认读取 `data/interim/gsm8k/train.jsonl` 和 `data/interim/gsm8k/test.jsonl`
+- 每个 split 单独建子目录，每种 `data_type` 单独输出一个文件：
+  - `data/final/gsm8k_think/train/modern.jsonl`
+  - `data/final/gsm8k_think/train/classical.jsonl`
+  - `data/final/gsm8k_think/train/modern2classical.jsonl`
+  - `data/final/gsm8k_think/train/modern2structure.jsonl`
+  - `data/final/gsm8k_think/test/modern.jsonl`
+  - `data/final/gsm8k_think/test/classical.jsonl`
+- 每个 split 子目录写入 `metadata.json`、`error_ids.txt`、`error_ids.jsonl`
 
 ### 数据校验
 

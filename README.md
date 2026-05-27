@@ -31,6 +31,7 @@
 ```text
 .
 ├── data/
+│   ├── raw/                   # GSM8K / Math23k 等公开原始数据
 │   ├── final/                 # 训练/验证/测试集与数据摘要
 │   └── interim/               # 对齐后的中间数据
 ├── docs/
@@ -82,6 +83,12 @@ uv run python scripts/train_lora_local.py --dataset-tag s800_think
 - `scripts/generate_dataset.py`
   - `python scripts/generate_dataset.py --variant visible`
   - `python scripts/generate_dataset.py --variant think --think-style by_view`
+- `scripts/build_dataset.py`
+  - 公开数据集增强入口；从 `data/raw` 读取 GSM8K / Math23k，调用 DeepSeek API 生成白话、文言与结构化 think 中间数据
+  - 示例：`python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim`
+- `scripts/format_gsm8k_messages.py`
+  - 将增强后的 GSM8K 数据展开为 `messages` 格式，并按 `data_type` 分别输出 JSONL
+  - 示例：`python scripts/format_gsm8k_messages.py --input data/interim/gsm8k --output-dir data/final/gsm8k_think --data-types modern classical modern2classical modern2structure`
 - `scripts/validate_dataset.py`
   - `python scripts/validate_dataset.py data/final/train_s800.jsonl`
   - `python scripts/validate_dataset.py data/final/train_s800_think.jsonl --expect-think-tags`

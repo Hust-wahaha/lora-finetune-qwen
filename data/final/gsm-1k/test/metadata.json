@@ -1,0 +1,73 @@
+{
+  "dataset": "gsm8k",
+  "family": "native",
+  "split": "test",
+  "dataset_variant": "think",
+  "think_style": "by_view",
+  "input_path": "data\\llm_output\\gsm8k\\test.jsonl",
+  "output_dir": "data\\dataset\\gsm-1k\\test",
+  "dataset_files": {
+    "modern": "modern.jsonl",
+    "classical": "classical.jsonl",
+    "modern2classical": "modern2classical.jsonl",
+    "modern2structure": "modern2structure.jsonl"
+  },
+  "metadata_file": "metadata.json",
+  "error_ids_file": "error_ids.txt",
+  "error_details_file": "error_ids.jsonl",
+  "data_types": [
+    "modern",
+    "classical",
+    "modern2classical",
+    "modern2structure"
+  ],
+  "supported_data_types": [
+    "classic",
+    "classic2modern",
+    "classic2structure",
+    "classic2structured",
+    "classical",
+    "classical2modern",
+    "classical2structure",
+    "classical2structured",
+    "modern",
+    "modern2classic",
+    "modern2classical",
+    "modern2structure",
+    "modern2structured",
+    "structure",
+    "structured"
+  ],
+  "limit": null,
+  "source_items_seen": 250,
+  "source_items_success": 248,
+  "source_items_failed": 2,
+  "records_written": 992,
+  "records_by_type": {
+    "modern": 248,
+    "classical": 248,
+    "modern2classical": 248,
+    "modern2structure": 248
+  },
+  "created_at": "2026-05-27T17:24:39",
+  "schema": {
+    "top_level_fields": [
+      "base_id",
+      "source",
+      "family",
+      "split",
+      "answer",
+      "dataset_variant",
+      "think_style",
+      "id",
+      "view",
+      "messages"
+    ],
+    "message_roles": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "assistant_format": "<think>\\n...\\n</think>\\n\\n答案：..."
+  }
+}
