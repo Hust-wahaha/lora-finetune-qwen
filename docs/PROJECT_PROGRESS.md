@@ -375,6 +375,13 @@
 - 最终输出建议进入：
   - `data/final/gsm8k_think/train/{data_type}.jsonl`
   - `data/final/gsm8k_think/test/{data_type}.jsonl`
+- 已补充公开原始数据前置步骤：
+  - GSM8K parquet 由 Git LFS 管理，首次使用前需要 `git lfs pull`
+  - Math23k 是 git submodule，首次使用前需要 `git submodule update --init --recursive`
+- 已明确新数据集训练入口：
+  - 当前公开数据集 final 路径不走 `train_<dataset_tag>.jsonl / val_<dataset_tag>.jsonl` 默认口径
+  - 训练时通过 `--train-file data/final/gsm8k_think/train/{data_type}.jsonl`
+  - 验证时通过 `--val-file data/final/gsm8k_think/test/{data_type}.jsonl`
 - 这次更新的定位：
   - 不是替代 `s800_think`
   - 而是把后续大规模公开数据扩展的数据生产链路标准化

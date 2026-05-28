@@ -100,6 +100,57 @@ uv run python scripts/train_lora_local.py --dataset-tag s800_think
 - `scripts/inspect_think_samples.py`
   - 抽样查看 base / finetuned 模型在白话题、文言题上的 `think` 输出
 
+## 公开数据集构建到训练
+
+公开数据集原始文件有两个前置依赖，新同学普通 `git clone` 后需要先执行：
+
+```bash
+git lfs pull
+git submodule update --init --recursive
+```
+
+原因：
+
+- `data/raw/gsm8k` 中的 parquet 文件由 Git LFS 管理
+- `data/raw/Math23k` 是 git submodule
+
+推荐的 GSM8K pilot 全流程如下：
+
+```bash
+python scripts/build_dataset.py \
+  --source gsm8k \
+  --limit 500 \
+  --ratio 8:2 \
+  --output-dir data/interim
+```
+
+```bash
+python scripts/format_gsm8k_messages.py \
+  --input data/interim/gsm8k \
+  --output-dir data/final/gsm8k_think \
+  --data-types modern classical modern2classical modern2structure
+```
+
+当前新增公开数据集不走旧的 `data/final/train_<dataset_tag>.jsonl` 默认查找口径，而是显式传入训练/验证文件。以 `modern` 视图为例：
+
+```bash
+python scripts/train_lora_local.py \
+  --dataset-tag gsm8k_think_modern \
+  --train-file data/final/gsm8k_think/train/modern.jsonl \
+  --val-file data/final/gsm8k_think/test/modern.jsonl \
+  --run-tag pilot_modern
+```
+
+如果训练 `modern2classical`，只需要替换文件路径：
+
+```bash
+python scripts/train_lora_local.py \
+  --dataset-tag gsm8k_think_m2c \
+  --train-file data/final/gsm8k_think/train/modern2classical.jsonl \
+  --val-file data/final/gsm8k_think/test/modern2classical.jsonl \
+  --run-tag pilot_m2c
+```
+
 ## 推荐阅读与协作顺序
 
 1. 先读 [docs/README.md](docs/README.md)

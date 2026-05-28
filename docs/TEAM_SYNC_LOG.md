@@ -303,3 +303,45 @@
 
 ### 建议下一步
 - 根据gsm8k数据集跑实验
+
+## Zimo Tang_with_codex | 2026-05-28 10:20
+
+### 本次工作
+- 根据 review 补充公开原始数据初始化步骤
+- 统一 GSM8K 增强数据的 canonical final 路径
+- 补充公开数据集接入 `train_lora_local.py` 的可复制训练命令
+
+### 为什么这样做
+- 普通 `git clone` 后，GSM8K parquet 仍需要 `git lfs pull`，Math23k 仍需要初始化 submodule
+- 如果不写清楚，队友会误以为 raw 文件已经完整可读
+- 新数据集当前按 `data/final/gsm8k_think/{train,test}/{data_type}.jsonl` 落盘，和历史 `train_<dataset_tag>.jsonl / val_<dataset_tag>.jsonl` 训练默认口径不同，必须明确通过 `--train-file` / `--val-file` 接入
+
+### 修改/涉及文件
+- `README.md`
+- `docs/DATA_SCHEMA.md`
+- `docs/PROJECT_PROGRESS.md`
+- `docs/REPOSITORY_RULES.md`
+- `docs/TEAM_SYNC_LOG.md`
+- `scripts/format_gsm8k_messages.py`
+
+### 实验或运行信息
+- 机器：本地 Windows
+- 命令：
+  - `python -m py_compile scripts/build_dataset.py scripts/format_gsm8k_messages.py`
+- 推荐 raw 数据初始化：
+  - `git lfs pull`
+  - `git submodule update --init --recursive`
+- 推荐训练入口：
+  - `python scripts/train_lora_local.py --dataset-tag gsm8k_think_modern --train-file data/final/gsm8k_think/train/modern.jsonl --val-file data/final/gsm8k_think/test/modern.jsonl --run-tag pilot_modern`
+
+### 结果与结论
+- 文档现在明确了从 clone 后初始化 raw 数据，到构建 interim，再格式化 final，再接入训练的完整路径
+- `format_gsm8k_messages.py` 默认输出已统一为 `data/final/gsm8k_think`
+
+### 风险 / 遗留问题
+- 当前 pilot 训练命令暂时用 test split 作为 `--val-file`
+- 正式实验如果需要独立 test，应先从 train 切出 val，或扩展构建脚本支持 val split
+
+### 建议下一步
+- 跑小规模 `gsm8k_think_modern` pilot，确认训练入口和样本质量
+- 再决定是否把格式化脚本泛化到 Math23k

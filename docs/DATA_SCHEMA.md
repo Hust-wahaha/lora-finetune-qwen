@@ -375,7 +375,7 @@
 公开数据集最终 messages 数据建议放在：
 
 ```text
-data/final/{dataset_tag}/
+data/final/gsm8k_think/
 ├── train/
 │   ├── modern.jsonl
 │   ├── classical.jsonl
@@ -396,11 +396,17 @@ data/final/{dataset_tag}/
 
 其中：
 
+- `data/final/gsm8k_think/` 是当前 GSM8K 公开增强数据的 canonical 输出目录
 - `modern.jsonl` 只包含 `view=modern`
 - `modern2classical.jsonl` 只包含 `view=modern2classical`
 - `metadata.json` 记录输入 checkpoint、data_types、记录数、错误数、schema 摘要
 - `error_ids.txt` 只保存失败基础样本 id，方便二次补跑
 - `error_ids.jsonl` 保存失败样本 id、行号和错误原因
+
+注意：
+
+- 该目录结构不同于历史合成数据的 `data/final/train_<dataset_tag>.jsonl` 口径
+- 用它训练时必须显式传入 `--train-file` 和 `--val-file`
 
 ### 最终 messages 格式
 

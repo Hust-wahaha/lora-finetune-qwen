@@ -143,6 +143,19 @@ python scripts/generate_dataset.py --variant think --think-style by_view --datas
 
 公开数据集 API 增强：
 
+普通 `git clone` 后，公开原始数据不能假设已经就绪。首次运行前必须在仓库根目录执行：
+
+```bash
+git lfs pull
+git submodule update --init --recursive
+```
+
+说明：
+
+- `data/raw/gsm8k` 的 parquet 文件由 Git LFS 管理
+- `data/raw/Math23k` 是 git submodule
+- 如果没有做这两步，容易出现“文件路径存在但实际内容无法读取”的问题
+
 ```bash
 python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim
 ```
@@ -186,6 +199,47 @@ python scripts/format_gsm8k_messages.py \
   - `data/final/gsm8k_think/test/modern.jsonl`
   - `data/final/gsm8k_think/test/classical.jsonl`
 - 每个 split 子目录写入 `metadata.json`、`error_ids.txt`、`error_ids.jsonl`
+
+### 公开数据集训练入口
+
+当前 `scripts/train_lora_local.py` 的历史默认口径是：
+
+```text
+data/final/train_<dataset_tag>.jsonl
+data/final/val_<dataset_tag>.jsonl
+```
+
+而公开数据集格式化后的 canonical 路径是：
+
+```text
+data/final/gsm8k_think/{train,test}/{data_type}.jsonl
+```
+
+因此训练公开数据集时必须显式传入 `--train-file` 和 `--val-file`。以 `modern` 为例：
+
+```bash
+python scripts/train_lora_local.py \
+  --dataset-tag gsm8k_think_modern \
+  --train-file data/final/gsm8k_think/train/modern.jsonl \
+  --val-file data/final/gsm8k_think/test/modern.jsonl \
+  --run-tag pilot_modern
+```
+
+以 `modern2classical` 为例：
+
+```bash
+python scripts/train_lora_local.py \
+  --dataset-tag gsm8k_think_m2c \
+  --train-file data/final/gsm8k_think/train/modern2classical.jsonl \
+  --val-file data/final/gsm8k_think/test/modern2classical.jsonl \
+  --run-tag pilot_m2c
+```
+
+说明：
+
+- 这里暂时用 test split 作为 `--val-file`，用于 pilot 训练中的 eval
+- 正式实验如果需要保留独立 test，应先从 train 中切出 val，或扩展格式化脚本生成 val split
+- 不再推荐混用 `data/final/gsm-1k/...`、`data/final/gsm8k/...` 等临时目录作为正式入口；新增公开数据集默认使用 `data/final/gsm8k_think/`
 
 ### 数据校验
 

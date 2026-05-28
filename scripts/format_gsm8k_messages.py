@@ -37,7 +37,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 DEFAULT_INPUT = os.path.join(DATA_DIR, "interim", "gsm8k")
-DEFAULT_OUTPUT_DIR = os.path.join(DATA_DIR,"final","gsm8k")
+DEFAULT_OUTPUT_DIR = os.path.join(DATA_DIR, "final", "gsm8k_think")
 
 SUPPORTED_DATA_TYPES = {
     "modern",
