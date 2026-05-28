@@ -29,6 +29,10 @@ CLASSICAL_KEYWORDS: tuple[str, ...] = (
 
 _ENGLISH_RUN = re.compile(r'[A-Za-z]{4,}')
 _THINK_BLOCK = re.compile(r'<think>\s*(.*?)\s*</think>', re.DOTALL)
+# 与 scripts/eval_five_metrics.py:extract_answer 同口径：必须 "答案：N。"（数字+句号）
+# 才算整条生成完成。否则 "答案：很多。" / "答案：7个。" 这类没有提取出数值的输出会被
+# is_generation_complete 误判为已完成，与文档/markdown 释义脱节。
+_ANSWER_NUMERIC = re.compile(r'答案[：:]\s*[0-9]+(?:\.[0-9]+)?\s*。')
 
 
 def extract_think_block(text: str | None) -> str | None:
@@ -50,9 +54,7 @@ def is_generation_complete(text: str | None) -> bool:
     if not is_cot_complete(text):
         return False
     assert text is not None
-    if ANSWER_MARKER not in text:
-        return False
-    return text.rstrip().endswith('。')
+    return _ANSWER_NUMERIC.search(text) is not None
 
 
 def _count_hits(text: str, keywords: tuple[str, ...]) -> int:
