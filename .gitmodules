@@ -1,0 +1,3 @@
+[submodule "data/raw/Math23k"]
+	path = data/raw/Math23k
+	url = https://github.com/SCNU203/Math23k.git

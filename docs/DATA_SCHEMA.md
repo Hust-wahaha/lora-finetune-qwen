@@ -180,9 +180,22 @@
 
 - 含义：当前训练记录使用的输入视图
 - 作用：区分白话视图和文言视图
-- 当前可选值：
+- 合成数据主线当前可选值：
   - `modern`
   - `classical`
+- 公开数据集增强管线会进一步使用 `data_type` / `view` 表示“题面语体 -> think 风格”的组合：
+  - `modern`
+  - `classical`
+  - `modern2classical`
+  - `modern2structure`
+  - `classical2modern`
+  - `classical2structure`
+
+说明：
+
+- 单词 `classic` 只作为命令行兼容别名，正式数据字段中建议统一写 `classical`
+- `modern2classical` 表示 user 使用白话题面，assistant 的 `<think>` 使用文言风格
+- `modern2structure` 表示 user 使用白话题面，assistant 的 `<think>` 使用结构化风格
 
 ### `dataset_variant` 展开字段（建议保留）
 
@@ -321,3 +334,96 @@
   - `xxx_think`
 
 这样后续即使提出新方法，也不需要推翻 schema，只需要新增一个符合规则的字段即可。
+
+## 九、公开数据集增强管线字段
+
+除合成模板数据外，仓库现在纳入了公开数学题数据构建组件：
+
+- `scripts/build_dataset.py`
+  - 从 `data/raw/gsm8k`、`data/raw/Math23k` 读取原始数据
+  - 调用 DeepSeek API 生成白话题面、文言题面、白话 think、文言 think、结构化 think
+  - 输出增强后的中间 JSONL 与 split 独立 checkpoint
+- `scripts/format_gsm8k_messages.py`
+  - 读取增强后的 GSM8K split JSONL
+  - 根据 `--data-types` 展开成可训练的 `messages` 样本
+  - 按 data_type 分别写入不同 JSONL
+
+### 中间增强数据字段
+
+`build_dataset.py` 生成的中间样本至少包含：
+
+- `id`
+- `source`
+- `split`
+- `original_question`
+- `original_cot`
+- `modern_question`
+- `modern_cot`
+- `classical_question`
+- `classical_cot`
+- `structured_cot`
+- `answer`
+
+进入最终训练数据时，格式化脚本会将历史兼容字段转换为当前推荐字段：
+
+- `modern_cot -> modern_think`
+- `classical_cot -> classical_think`
+- `structured_cot -> structured_think`
+
+### 最终目录结构
+
+公开数据集最终 messages 数据建议放在：
+
+```text
+data/final/gsm8k_think/
+├── train/
+│   ├── modern.jsonl
+│   ├── classical.jsonl
+│   ├── modern2classical.jsonl
+│   ├── modern2structure.jsonl
+│   ├── metadata.json
+│   ├── error_ids.txt
+│   └── error_ids.jsonl
+└── test/
+    ├── modern.jsonl
+    ├── classical.jsonl
+    ├── modern2classical.jsonl
+    ├── modern2structure.jsonl
+    ├── metadata.json
+    ├── error_ids.txt
+    └── error_ids.jsonl
+```
+
+其中：
+
+- `data/final/gsm8k_think/` 是当前 GSM8K 公开增强数据的 canonical 输出目录
+- `modern.jsonl` 只包含 `view=modern`
+- `modern2classical.jsonl` 只包含 `view=modern2classical`
+- `metadata.json` 记录输入 checkpoint、data_types、记录数、错误数、schema 摘要
+- `error_ids.txt` 只保存失败基础样本 id，方便二次补跑
+- `error_ids.jsonl` 保存失败样本 id、行号和错误原因
+
+注意：
+
+- 该目录结构不同于历史合成数据的 `data/final/train_<dataset_tag>.jsonl` 口径
+- 用它训练时必须显式传入 `--train-file` 和 `--val-file`
+
+### 最终 messages 格式
+
+公开数据集最终训练样本仍然遵循当前显式 think 监督格式：
+
+```text
+messages[0].role = system
+messages[1].role = user
+messages[2].role = assistant
+```
+
+assistant 内容固定为：
+
+```text
+<think>
+{某个 xxx_think 字段对应的文本}
+</think>
+
+答案：{answer}。
+```

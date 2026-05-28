@@ -1,0 +1,37 @@
+{
+  "dataset": "gsm8k",
+  "output_dir": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k",
+  "source": "gsm8k",
+  "splits": [
+    "train",
+    "test"
+  ],
+  "train_limit": 1000,
+  "ratio": "8:2",
+  "resume": true,
+  "model": "deepseek-v4-flash",
+  "split_summaries": [
+    {
+      "split": "train",
+      "raw_items": 7473,
+      "planned_limit": 1000,
+      "success": 1000,
+      "failed": 0,
+      "records_written": 1000,
+      "dataset_file": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k\\train.jsonl",
+      "checkpoint_file": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k\\checkpoint_train.jsonl",
+      "failed_file": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k\\checkpoint_train.jsonl.failed"
+    },
+    {
+      "split": "test",
+      "raw_items": 1319,
+      "planned_limit": 250,
+      "success": 250,
+      "failed": 0,
+      "records_written": 250,
+      "dataset_file": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k\\test.jsonl",
+      "checkpoint_file": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k\\checkpoint_test.jsonl",
+      "failed_file": "C:\\Users\\mo\\Desktop\\Study\\Course_design\\模式识别\\python_ws\\data/llm_output\\gsm8k\\checkpoint_test.jsonl.failed"
+    }
+  ]
+}
