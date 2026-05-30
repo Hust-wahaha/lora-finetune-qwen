@@ -30,6 +30,7 @@
 - [当前进展](#当前进展)
 - [方法概览](#方法概览)
 - [实验矩阵](#实验矩阵)
+- [方法框架图](#方法框架图)
 - [仓库结构](#仓库结构)
 - [核心脚本](#核心脚本)
 - [快速开始](#快速开始)
@@ -139,6 +140,28 @@
 - 正确率保持情况
 - `think` 长度变化
 - 压缩率与输出稳定性之间的权衡
+
+## 方法框架图
+
+<div align="center">
+  <img src="docs/assets/method-overview.svg" alt="方法框架图" width="100%"/>
+</div>
+
+## Key Results
+
+当前已落地并可复现的代表性结果如下：
+
+| Setting | Focus | Baseline | Finetuned | Notes |
+| --- | --- | --- | --- | --- |
+| `s800` | structured visible-output supervision | `55.0%` | `96.25%` | 当前结构化监督主线在合成分布内已非常强 |
+| `s800_think` | explicit `<think>` supervision | `55.0%` | `100%` | 微调后 `think` 从默认英文变为受控中文 / 文言 |
+| `reference_v1` inspect | qualitative behavior | English long think | Chinese / classical aligned think | 已验证风格控制目标可达成 |
+
+当前更重要的结论不是“单次准确率更高”，而是：
+
+- 显式 `think` 监督确实改写了 `<think>` 内部内容，而不是只改善了答案格式
+- 低参数模型的 `think` 可以被约束为白话、文言或结构化表达
+- 下一阶段的重点应从“能否起作用”转向“不同压缩策略的权衡比较”
 
 ## 一眼看懂当前主线
 

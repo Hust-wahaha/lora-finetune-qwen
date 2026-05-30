@@ -1,0 +1,80 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1720"/>
+      <stop offset="1" stop-color="#0E2C2E"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#132833"/>
+      <stop offset="1" stop-color="#173C3A"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#EAB308"/>
+      <stop offset="1" stop-color="#FB7185"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="20" flood-color="#020617" flood-opacity="0.32"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10V0Z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="720" rx="28" fill="url(#bg)"/>
+  <circle cx="1150" cy="110" r="140" fill="#1D4ED8" fill-opacity="0.08"/>
+  <circle cx="130" cy="620" r="180" fill="#F59E0B" fill-opacity="0.05"/>
+  <circle cx="870" cy="620" r="220" fill="#10B981" fill-opacity="0.05"/>
+
+  <text x="80" y="92" fill="#E2E8F0" font-size="32" font-family="Arial, sans-serif" font-weight="700">Method Overview</text>
+  <text x="80" y="126" fill="#94A3B8" font-size="18" font-family="Arial, sans-serif">Dataset × Model × Benchmark for explicit think compression on Chinese math word problems</text>
+
+  <rect x="72" y="178" width="330" height="420" rx="26" fill="url(#card)" stroke="#284356" stroke-width="2" filter="url(#shadow)"/>
+  <text x="104" y="230" fill="#F8FAFC" font-size="26" font-family="Arial, sans-serif" font-weight="700">1. Dataset Axis</text>
+  <text x="104" y="270" fill="#CBD5E1" font-size="18" font-family="Arial, sans-serif">Difficulty stratification + multi-view think supervision</text>
+  <rect x="104" y="304" width="266" height="72" rx="18" fill="#0F2230" stroke="#315268"/>
+  <text x="126" y="335" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Question Views</text>
+  <text x="126" y="360" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">modern_question / classical_question</text>
+  <rect x="104" y="392" width="266" height="92" rx="18" fill="#102730" stroke="#315268"/>
+  <text x="126" y="423" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Think Targets</text>
+  <text x="126" y="448" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">modern_think</text>
+  <text x="126" y="470" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">classical_think</text>
+  <text x="248" y="470" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">structured_think</text>
+  <rect x="104" y="500" width="266" height="72" rx="18" fill="#0F2230" stroke="#315268"/>
+  <text x="126" y="531" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Difficulty Layers</text>
+  <text x="126" y="556" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">elementary / middle / high / long-process</text>
+
+  <rect x="474" y="178" width="330" height="420" rx="26" fill="url(#card)" stroke="#284356" stroke-width="2" filter="url(#shadow)"/>
+  <text x="506" y="230" fill="#F8FAFC" font-size="26" font-family="Arial, sans-serif" font-weight="700">2. Model Axis</text>
+  <text x="506" y="270" fill="#CBD5E1" font-size="18" font-family="Arial, sans-serif">LoRA training over explicit think formats</text>
+  <rect x="506" y="304" width="266" height="72" rx="18" fill="#0F2230" stroke="#315268"/>
+  <text x="528" y="335" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Base Models</text>
+  <text x="528" y="360" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">Qwen 0.8B / 2B / 4B</text>
+  <rect x="506" y="392" width="266" height="92" rx="18" fill="#102730" stroke="#315268"/>
+  <text x="528" y="423" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Supervision Tracks</text>
+  <text x="528" y="448" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">modern_think</text>
+  <text x="528" y="470" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">classical_think</text>
+  <text x="650" y="470" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">structured_think</text>
+  <rect x="506" y="500" width="266" height="72" rx="18" fill="#0F2230" stroke="#315268"/>
+  <text x="528" y="531" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Outputs of Interest</text>
+  <text x="528" y="556" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">accuracy, think length, style control</text>
+
+  <rect x="876" y="178" width="330" height="420" rx="26" fill="url(#card)" stroke="#284356" stroke-width="2" filter="url(#shadow)"/>
+  <text x="908" y="230" fill="#F8FAFC" font-size="26" font-family="Arial, sans-serif" font-weight="700">3. Benchmark Axis</text>
+  <text x="908" y="270" fill="#CBD5E1" font-size="18" font-family="Arial, sans-serif">Unified protocol for horizontal comparison</text>
+  <rect x="908" y="304" width="266" height="72" rx="18" fill="#0F2230" stroke="#315268"/>
+  <text x="930" y="335" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Answer Metrics</text>
+  <text x="930" y="360" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">rule-based accuracy / LLM-reviewed accuracy</text>
+  <rect x="908" y="392" width="266" height="92" rx="18" fill="#102730" stroke="#315268"/>
+  <text x="930" y="423" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Think Compression</text>
+  <text x="930" y="448" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">think length / completeness / short-window behavior</text>
+  <rect x="908" y="500" width="266" height="72" rx="18" fill="#0F2230" stroke="#315268"/>
+  <text x="930" y="531" fill="#F8FAFC" font-size="18" font-family="Arial, sans-serif" font-weight="700">Protocol Discipline</text>
+  <text x="930" y="556" fill="#A5B4C3" font-size="15" font-family="Arial, sans-serif">fixed decoding, same baseline, reproducible runs</text>
+
+  <path d="M402 388C430 388 438 388 474 388" stroke="#94A3B8" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M804 388C832 388 840 388 876 388" stroke="#94A3B8" stroke-width="4" marker-end="url(#arrow)"/>
+
+  <rect x="314" y="622" width="652" height="58" rx="18" fill="#0E2431" stroke="url(#accent)" stroke-width="2"/>
+  <text x="344" y="658" fill="#F8FAFC" font-size="20" font-family="Arial, sans-serif" font-weight="700">Goal:</text>
+  <text x="410" y="658" fill="#CBD5E1" font-size="20" font-family="Arial, sans-serif">maintain comparable answer quality while shortening and controlling think outputs</text>
+</svg>
