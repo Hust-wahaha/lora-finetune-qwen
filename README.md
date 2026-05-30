@@ -33,6 +33,7 @@
 - [方法框架图](#方法框架图)
 - [仓库结构](#仓库结构)
 - [核心脚本](#核心脚本)
+- [Case Study](#case-study)
 - [快速开始](#快速开始)
 - [文档入口](#文档入口)
 - [参考 Run](#参考-run)
@@ -173,6 +174,68 @@
 | 核心监督形式 | `modern_think / classical_think / structured_think` |
 | 当前评测基线 | `eval_compare_full.py` |
 | 协作入口 | `docs/STAGE2_EXECUTION_GUIDE.md` |
+
+## Case Study
+
+下面这组样例体现的不是“答案碰巧更准”，而是 `<think>` 内容本身的监督目标被真正学到了。
+
+### Example A: modern question
+
+**Question**
+
+```text
+小明有12颗糖，送给小红5颗，还剩几颗？
+```
+
+**Baseline tendency**
+
+```text
+<think>
+[通常为英文长推理，长度较长，最终答案位置不稳定]
+</think>
+```
+
+**Finetuned output**
+
+```text
+<think>
+原来有12颗糖，送给小红5颗，所以用减法：12-5=7。
+</think>
+
+答案：7。
+```
+
+### Example B: classical question
+
+**Question**
+
+```text
+明有糖12颗，遗红5颗，尚余几何？
+```
+
+**Baseline tendency**
+
+```text
+<think>
+[通常仍为英文默认 think，无法随题面稳定切换到文言表达]
+</think>
+```
+
+**Finetuned output**
+
+```text
+<think>
+初有12颗，遗5颗，故12-5=7。
+</think>
+
+答案：7。
+```
+
+这两组样例说明：
+
+- 微调后的变化发生在 `<think>` 内部，而不只是最终 `答案：N。`
+- 白话题面与文言题面已经可以触发不同风格的思维表达
+- 当前主线已经具备继续比较 `modern_think / classical_think / structured_think` 压缩效果的基础
 
 ## 仓库结构
 
