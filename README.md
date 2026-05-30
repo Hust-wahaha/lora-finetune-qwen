@@ -1,9 +1,45 @@
+<div align="center">
+  <img src="docs/assets/readme-banner.png" alt="项目横幅" width="100%"/>
+</div>
+
+<div align="center">
+
 # 面向低参数中文模型的数学应用题 Think 压缩实验
 
-> 华中科技大学人工智能与自动化学院 2023 级课程设计项目  
+<p>
+  <img src="https://img.shields.io/badge/task-think%20compression-0f766e">
+  <img src="https://img.shields.io/badge/model-Qwen%200.8B%20%7C%202B%20%7C%204B-1d4ed8">
+  <img src="https://img.shields.io/badge/domain-Chinese%20math%20word%20problems-b45309">
+  <img src="https://img.shields.io/badge/training-LoRA-7c3aed">
+  <img src="https://img.shields.io/badge/status-stage%202-059669">
+  <img src="https://img.shields.io/badge/language-中文-334155">
+</p>
+
+<p><b>HUST AI&A 2023 Course Design Project</b></p>
+<p>Dataset, Model, Benchmark</p>
+
+</div>
+
 > 关键词：`LoRA`、`Qwen`、`数学应用题`、`显式 think 监督`、`文言压缩`、`结构化 think`
 
-本项目研究一个非常具体的问题：
+## 导航
+
+- [项目概述](#项目概述)
+- [核心亮点](#核心亮点)
+- [研究问题](#研究问题)
+- [当前进展](#当前进展)
+- [方法概览](#方法概览)
+- [实验矩阵](#实验矩阵)
+- [仓库结构](#仓库结构)
+- [核心脚本](#核心脚本)
+- [快速开始](#快速开始)
+- [文档入口](#文档入口)
+- [参考 Run](#参考-run)
+- [协作约定](#协作约定)
+
+## 项目概述
+
+本项目研究一个具体而窄的问题：
 
 **在不明显损害答案正确率的前提下，能否通过数据集构建与监督方式设计，压缩小模型的 `think` 内容长度，并控制其语言风格与表达形式。**
 
@@ -20,14 +56,23 @@
 - 短生成窗口下的完整率
 - 白话 / 文言输入下的风格对齐情况
 
-## 项目亮点
+## 核心亮点
 
 - 显式监督 `<think>...</think>` 内部内容，而不是只监督最终可见答案
 - 同时覆盖白话、文言与结构化三类思维表达
 - 关注“小模型推理压缩”而不是单纯做题能力提升
 - 训练、评测、案例抽样、协作文档都已进入同一仓库主线
 
-## 研究现状
+## 研究问题
+
+我们关心的不是“微调后能不能把题做对”这一个点，而是更细的权衡问题：
+
+1. 能否在答案正确率基本保持的情况下，明显缩短 `think`
+2. 白话、文言、结构化三类思维表达，哪一种更适合低参数模型
+3. 在更短的生成窗口下，哪些监督形式更稳定
+4. 当数据难度上升或过程变长时，压缩策略的边界在哪里
+
+## 当前进展
 
 当前项目已经完成第一阶段验证：
 
@@ -40,6 +85,11 @@
 - `s800` 结构化监督主线：规则评测从 `55.0%` 提升到 `96.25%`
 - `s800_think` 显式 `think` 监督主线：规则评测从 `55.0%` 提升到 `100%`
 - 微调后模型可稳定输出白话 `think` 与文言 `think`
+
+阶段判断：
+
+- 第一阶段已经回答了“显式 `think` 监督是否可行”
+- 当前项目已进入第二阶段：围绕 `Data Set / Model / Benchmark` 形成系统实验框架
 
 ## 第二阶段目标
 
@@ -90,6 +140,17 @@
 - `think` 长度变化
 - 压缩率与输出稳定性之间的权衡
 
+## 一眼看懂当前主线
+
+| 维度 | 当前主线 |
+| --- | --- |
+| 任务目标 | 数学应用题 `think` 压缩 |
+| 当前基线模型 | `Qwen/Qwen3.5-0.8B` |
+| 下一阶段模型轴 | `0.8B / 2B / 4B` |
+| 核心监督形式 | `modern_think / classical_think / structured_think` |
+| 当前评测基线 | `eval_compare_full.py` |
+| 协作入口 | `docs/STAGE2_EXECUTION_GUIDE.md` |
+
 ## 仓库结构
 
 ```text
@@ -110,7 +171,7 @@
 └── README.md
 ```
 
-## 当前主线脚本
+## 核心脚本
 
 ### 数据
 
@@ -155,7 +216,7 @@ uv run python scripts/train_lora_local.py --dataset-tag s800_think --run-tag smo
 uv pip install -r requirements.txt
 ```
 
-## 推荐阅读顺序
+## 文档入口
 
 1. [docs/STAGE2_EXECUTION_GUIDE.md](docs/STAGE2_EXECUTION_GUIDE.md)  
    第二阶段的统一分工、限制条件与协作规则。
