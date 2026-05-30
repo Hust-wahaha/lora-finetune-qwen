@@ -250,98 +250,130 @@
 ### 建议下一步
 - 以后所有由你与我协同完成的日志条目，统一继续使用 `Zhuoya Wang_with_codex`
 
-## Zimo Tang | 2026-05-27 13:55
+## Zhuoya Wang_with_codex | 2026-05-30 20:50
 
 ### 本次工作
-- 将公开数据集构建组件纳入仓库脚本目录
-- 同步更新数据 schema、仓库规则、项目进度和 README
-- 明确 GSM8K / Math23k 从 raw 数据、API 增强、split checkpoint 到 final messages 数据的使用流程
+- 新增第二阶段统一执行文档
+- 重写仓库根 `README.md`
+- 更新文档导航，明确新同学的阅读顺序
 
 ### 为什么这样做
-- 原有 `s800_think` 主线验证了显式 think 监督可行，但数据规模和来源仍偏合成模板
-- 后续需要扩展到 GSM8K / Math23k 等公开数据，同时保持 split、checkpoint、metadata、error ids 可追溯
-- 数据构建脚本已经在仓库外打磨完成，需要进入正式仓库文档体系，方便后续组员复用
+- 当前项目已经从“think 监督是否可行”进入“多数据、多模型、多评测轴并行推进”的第二阶段
+- 如果不把任务边界、限制条件和协作口径提前冻结，后续很容易出现各做各的、结果无法整合的问题
+- 原有 `README` 更偏第一阶段记录，不足以作为后续对外展示和新成员接手入口
 
 ### 修改/涉及文件
-- `scripts/build_dataset.py`
-- `scripts/format_gsm8k_messages.py`
 - `README.md`
-- `pyproject.toml`
-- `requirements.txt`
-- `requirements-windows.txt`
 - `docs/README.md`
+- `docs/STAGE2_EXECUTION_GUIDE.md`
 - `docs/PROJECT_PROGRESS.md`
-- `docs/DATA_SCHEMA.md`
-- `docs/REPOSITORY_RULES.md`
 - `docs/TEAM_SYNC_LOG.md`
 
 ### 实验或运行信息
-- 机器：本地 Windows
-- 命令：
-  - `python -m py_compile scripts/build_dataset.py scripts/format_gsm8k_messages.py`
-- 推荐数据增强命令：
-  - `python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim`
-- 推荐格式化命令：
-  - `python scripts/format_gsm8k_messages.py --input data/interim/gsm8k --output-dir data/final/gsm8k_think --data-types modern classical modern2classical modern2structure`
-- 输出目录：
-  - 中间增强数据：`data/interim/gsm8k/`
-  - 最终 messages 数据：`data/final/gsm8k_think/{train,test}/`
+- 机器：本地文档整理
+- 命令：无
+- 输出目录：无
 
 ### 结果与结论
-- 新增公开数据集两阶段构建流程：
-  - 第一阶段：`build_dataset.py` 生成 split 独立的增强数据和 checkpoint
-  - 第二阶段：`format_gsm8k_messages.py` 按 `data_type` 展开最终训练 JSONL
-- `--limit` 语义固定为 train 数量，`--ratio` 默认 `8:2` 用于推导 test 数量
-- 最终数据仍遵守显式 think 监督格式：
-  - `<think>{xxx_think}</think>`
-  - `答案：{answer}。`
+- 现在仓库已经有一份明确的第二阶段协作入口文档，组员可以只看自己负责的部分开展工作
+- 根 `README` 已改为更接近论文式项目首页的结构，明确了研究问题、当前阶段、三条主轴和协作入口
+- 文档导航已更新，新的默认阅读顺序为：
+  - `README.md`
+  - `docs/STAGE2_EXECUTION_GUIDE.md`
+  - `docs/PROJECT_PROGRESS.md`
+  - `docs/DATA_SCHEMA.md`
 
 ### 风险 / 遗留问题
-- `build_dataset.py` 调用 DeepSeek API，需要配置 `DEEPSEEK_API_KEY`
-- GSM8K 原始 parquet 读取需要 `pyarrow` 或 `fastparquet`，本次已将 `pyarrow` 加入依赖
-- `format_gsm8k_messages.py` 当前主要面向 GSM8K 增强输出；Math23k final messages 展开如需独立格式，还应补专门入口或泛化该脚本
+- 当前本地文档主线仍主要围绕 `s800 / s800_think`，后续若公开数据集扩展脚本正式进入主仓，README 还需补一次脚本入口说明
+- 第二阶段 Benchmark 协议虽然已确定由谁负责，但具体评测字段与命令模板仍需后续落正式文档
 
 ### 建议下一步
-- 根据gsm8k数据集跑实验
+- 由各负责同学按 `STAGE2_EXECUTION_GUIDE.md` 开始推进自己的任务
+- 后续任何影响全组可比性的改动，先更新文档，再改脚本
 
-## Zimo Tang_with_codex | 2026-05-28 10:20
+## Zhuoya Wang_with_codex | 2026-05-30 21:10
 
 ### 本次工作
-- 根据 review 补充公开原始数据初始化步骤
-- 统一 GSM8K 增强数据的 canonical final 路径
-- 补充公开数据集接入 `train_lora_local.py` 的可复制训练命令
+- 继续强化根 `README.md` 的对外展示结构
+- 规范化新 run 的数据集标签呈现方式
 
 ### 为什么这样做
-- 普通 `git clone` 后，GSM8K parquet 仍需要 `git lfs pull`，Math23k 仍需要初始化 submodule
-- 如果不写清楚，队友会误以为 raw 文件已经完整可读
-- 新数据集当前按 `data/final/gsm8k_think/{train,test}/{data_type}.jsonl` 落盘，和历史 `train_<dataset_tag>.jsonl / val_<dataset_tag>.jsonl` 训练默认口径不同，必须明确通过 `--train-file` / `--val-file` 接入
+- 当前 README 已经不只是给组内自用，还承担新成员接手和对外展示的入口作用
+- 现有脚本虽然已有统一 `make_run_dir()`，但上游默认 `dataset_tag` 仍沿用 `s800 / s800_think`，导致新 run 名在第二阶段显得混乱
 
 ### 修改/涉及文件
 - `README.md`
-- `docs/DATA_SCHEMA.md`
-- `docs/PROJECT_PROGRESS.md`
+- `src/common/naming.py`
+- `scripts/train_lora_local.py`
+- `scripts/eval_compare_full.py`
 - `docs/REPOSITORY_RULES.md`
+- `docs/PROJECT_PROGRESS.md`
 - `docs/TEAM_SYNC_LOG.md`
-- `scripts/format_gsm8k_messages.py`
 
 ### 实验或运行信息
-- 机器：本地 Windows
-- 命令：
-  - `python -m py_compile scripts/build_dataset.py scripts/format_gsm8k_messages.py`
-- 推荐 raw 数据初始化：
-  - `git lfs pull`
-  - `git submodule update --init --recursive`
-- 推荐训练入口：
-  - `python scripts/train_lora_local.py --dataset-tag gsm8k_think_modern --train-file data/final/gsm8k_think/train/modern.jsonl --val-file data/final/gsm8k_think/test/modern.jsonl --run-tag pilot_modern`
+- 机器：本地文档与脚本整理
+- 命令：未实际发起训练，仅修改命名逻辑与默认参数来源
+- 输出目录：无
 
 ### 结果与结论
-- 文档现在明确了从 clone 后初始化 raw 数据，到构建 interim，再格式化 final，再接入训练的完整路径
-- `format_gsm8k_messages.py` 默认输出已统一为 `data/final/gsm8k_think`
+- README 现在新增了：
+  - 项目亮点
+  - 方法概览
+  - 第二阶段实验矩阵
+- `run` 命名现在对历史数据集采用兼容映射：
+  - `s800` -> `synth_structuredthink_800_v1`
+  - `s800_think` -> `synth_think_800_v1`
+- 数据文件路径保持不变，因此不会破坏旧数据与旧脚本
+- `train_lora_local.py` 与 `eval_compare_full.py` 的默认 `dataset_tag` 现在都统一从 `src/common/naming.py` 取值，不再各自手写字符串
 
 ### 风险 / 遗留问题
-- 当前 pilot 训练命令暂时用 test split 作为 `--val-file`
-- 正式实验如果需要独立 test，应先从 train 切出 val，或扩展构建脚本支持 val split
+- 当前本地仓库尚未把公开数据扩展脚本正式并入主线，所以 README 仍主要围绕现有 `local_repo` 主线脚本展开
+- 后续若 `2B / 4B` 模型轴正式接入，`model_tag` 也需要做同样层级的规范化
 
 ### 建议下一步
-- 跑小规模 `gsm8k_think_modern` pilot，确认训练入口和样本质量
-- 再决定是否把格式化脚本泛化到 Math23k
+- 下一步可继续把 `model_tag` 从写死 `qwen3.5-0.8b` 改成统一可配置
+- 待你确认后，再把这一轮文档与命名修改整体推送到 GitHub
+
+## Zhuoya Wang_with_codex | 2026-05-30 21:25
+
+### 本次工作
+- 将 `model_tag` 从单一硬编码改为统一可配置
+- 把训练、评测、抽样三类脚本全部接入同一套模型命名逻辑
+
+### 为什么这样做
+- 前一轮已经把 `dataset_tag` 的 run 命名做了兼容规范化，但如果 `model_tag` 仍写死，后续 `2B / 4B` 实验还是会再次出现命名混乱
+- 第二阶段已经明确要扩模型轴，因此必须先把 `model_id -> model_tag -> run 名` 这条链路收干净
+
+### 修改/涉及文件
+- `src/common/naming.py`
+- `scripts/train_lora_local.py`
+- `scripts/eval_compare_full.py`
+- `scripts/inspect_think_samples.py`
+- `README.md`
+- `docs/REPOSITORY_RULES.md`
+- `docs/PROJECT_PROGRESS.md`
+- `docs/TEAM_SYNC_LOG.md`
+
+### 实验或运行信息
+- 机器：本地脚本整理
+- 命令：`python3 -m py_compile src/common/naming.py scripts/train_lora_local.py scripts/eval_compare_full.py scripts/inspect_think_samples.py`
+- 输出目录：无
+
+### 结果与结论
+- 三类主线脚本现在都支持：
+  - `--model-id`
+  - `--model-tag`
+- 默认会根据 `model_id` 自动得到规范 `model_tag`
+- 当前已内置常用映射：
+  - `Qwen/Qwen3.5-0.8B` -> `qwen3.5-0.8b`
+  - `Qwen/Qwen3.5-2B` -> `qwen3.5-2b`
+  - `Qwen/Qwen3.5-4B` -> `qwen3.5-4b`
+- 这样后续如果白泽鑫扩 2B / 4B，不需要再自己处理 run 命名问题
+
+### 风险 / 遗留问题
+- 当前内置映射只覆盖常见 Qwen 型号；后续如果接其他模型家族，应继续补到 `src/common/naming.py`
+- 现有历史文档中的旧 run 名不会自动改写，属于正常历史记录
+
+### 建议下一步
+- 下一步可以把这轮文档与命名更新推到 GitHub
+- 后续模型轴扩展时，优先复用现有 `--model-id` / `--model-tag` 入口，不要再在脚本里手写新字符串

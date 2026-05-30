@@ -1,232 +1,218 @@
-# 中文数学应用题 LoRA 微调实验仓库
+# 面向低参数中文模型的数学应用题 Think 压缩实验
 
 > 华中科技大学人工智能与自动化学院 2023 级课程设计项目  
-> 研究主题：面向低参数中文模型的数学应用题数据集构建与 LoRA 微调
+> 关键词：`LoRA`、`Qwen`、`数学应用题`、`显式 think 监督`、`文言压缩`、`结构化 think`
 
-本仓库当前聚焦一条明确主线：基于自建中文数学应用题数据集，对 `Qwen/Qwen3.5-0.8B` 进行 LoRA 微调，并比较现代汉语题面、文言题面、结构化解题过程监督与显式 `think` 监督对模型行为的影响。
+本项目研究一个非常具体的问题：
 
-## 当前状态
+**在不明显损害答案正确率的前提下，能否通过数据集构建与监督方式设计，压缩小模型的 `think` 内容长度，并控制其语言风格与表达形式。**
 
-- 当前可见输出监督主线：
-  - `modern_question -> structured_think + answer`
-  - `classical_question -> structured_think + answer`
-- 当前主线模型：`runs/20260515_210429/checkpoints/checkpoint-40`
-- 已完成一次更可信的全量评测：
-  - Rule-based baseline：`55.0%`
-  - Rule-based finetuned：`96.25%`
-- 已补充显式 `think` 监督主线：
-  - `modern_question -> <think>modern_think</think> + answer`
-  - `classical_question -> <think>classical_think</think> + answer`
-- 当前基准数据集：`s800`
-- 当前显式思维监督数据集：`s800_think`
-- 已完成第一轮显式 `think` 监督实验：
-  - checkpoint：`runs/20260517_002714_think_pilot/checkpoints/checkpoint-40`
-  - `think` 风格对齐：成功
-  - `test_s800_think` 规则评测：baseline `55.0%`，finetuned `100%`
+当前主线围绕三种显式思维监督展开：
 
-说明：早期 `max_tokens=256` 的评测会被长 `<think>` 截断低估；当前应以 `max_tokens=512` 版本结果为准。后续正式口径改为“规则评测 + DeepSeek V4 Flash 复核错例”。
+- `modern_think`
+- `classical_think`
+- `structured_think`
+
+并比较它们在以下维度上的差异：
+
+- 最终答案正确率
+- `think` 长度与压缩程度
+- 短生成窗口下的完整率
+- 白话 / 文言输入下的风格对齐情况
+
+## 项目亮点
+
+- 显式监督 `<think>...</think>` 内部内容，而不是只监督最终可见答案
+- 同时覆盖白话、文言与结构化三类思维表达
+- 关注“小模型推理压缩”而不是单纯做题能力提升
+- 训练、评测、案例抽样、协作文档都已进入同一仓库主线
+
+## 研究现状
+
+当前项目已经完成第一阶段验证：
+
+- 基于 `s800 / s800_think` 跑通了本地数据生成、LoRA 训练、规则评测与样例检查闭环
+- 已证明显式 `think` 监督能够把基座模型默认的英文长推理，转成受控的中文 / 文言 `think`
+- 当前 `Qwen/Qwen3.5-0.8B` 主线实验已具备继续扩展数据、模型和 Benchmark 的基础
+
+当前代表性结论：
+
+- `s800` 结构化监督主线：规则评测从 `55.0%` 提升到 `96.25%`
+- `s800_think` 显式 `think` 监督主线：规则评测从 `55.0%` 提升到 `100%`
+- 微调后模型可稳定输出白话 `think` 与文言 `think`
+
+## 第二阶段目标
+
+第二阶段不再回答“显式 think 监督能否起作用”，而是系统回答三类问题：
+
+### 1. Data Set
+
+- 从当前小学难度主线扩展到更有层次的数据版本
+- 保留“过程可压缩”这一核心属性，而不是盲目追求超高难度
+- 统一数据字段、split 纪律与命名规则
+
+### 2. Model
+
+- 从当前 `0.8B` 主线扩展到 `2B / 4B`
+- 系统比较 `modern_think / classical_think / structured_think`
+- 分析不同监督形式在“压缩率-正确率”之间的权衡
+
+### 3. Benchmark
+
+- 固定统一的评测协议
+- 在同一解码条件下比较 baseline 与 finetuned
+- 同时记录规则准确率、复核准确率、输出完整率与 `think` 相关指标
+
+## 方法概览
+
+项目当前采用统一的三段式流程：
+
+1. 构造同一道题的多视图样本  
+   白话题面、文言题面，以及对应的 `modern_think / classical_think / structured_think`
+
+2. 进行显式 `think` 监督或结构化可见输出监督  
+   当前主线通过 `LoRA + Qwen` 微调，重点控制 `<think>` 内容本身
+
+3. 在固定解码设置下评测  
+   同时比较 baseline 与 finetuned，并记录规则结果、复核结果与压缩相关指标
+
+## 实验矩阵
+
+当前第二阶段的实验矩阵将沿三条轴扩展：
+
+- 数据轴：小学 / 中学 / 高中 / 长过程压力样本
+- 模型轴：`0.8B / 2B / 4B`
+- 监督轴：`modern_think / classical_think / structured_think`
+
+统一目标不是追求单点最高准确率，而是比较不同设置下：
+
+- 正确率保持情况
+- `think` 长度变化
+- 压缩率与输出稳定性之间的权衡
 
 ## 仓库结构
 
 ```text
 .
 ├── data/
-│   ├── raw/                   # GSM8K / Math23k 等公开原始数据
-│   ├── final/                 # 训练/验证/测试集与数据摘要
+│   ├── final/                 # 训练 / 验证 / 测试数据与摘要
 │   └── interim/               # 对齐后的中间数据
 ├── docs/
-│   ├── README.md              # 文档导航
-│   ├── PROJECT_PROGRESS.md    # 主线科研进度与关键结论
-│   └── TEAM_SYNC_LOG.md       # 小组协作接龙文档
-├── src/                       # 公共路径、命名、schema 等可复用逻辑
-├── runs/                      # 训练与评测产物
-├── scripts/                   # 数据生成、训练、评测脚本
-├── pyproject.toml             # uv/pyproject 依赖入口
+│   ├── STAGE2_EXECUTION_GUIDE.md
+│   ├── PROJECT_PROGRESS.md
+│   ├── DATA_SCHEMA.md
+│   ├── REPOSITORY_RULES.md
+│   └── TEAM_SYNC_LOG.md
+├── scripts/                   # 数据生成、训练、评测、抽样入口
+├── src/                       # 可复用公共模块
+├── pyproject.toml             # 主依赖入口
 ├── requirements.txt           # 兜底依赖清单
 └── README.md
 ```
 
-## 环境复现
+## 当前主线脚本
 
-新成员优先用 `uv` 复现环境：
+### 数据
+
+- `scripts/generate_dataset.py`
+  - 生成 `visible` 或 `think` 训练数据
+  - 支持 `structured_think` 与按视图切换的 `think` 目标
+
+- `scripts/validate_dataset.py`
+  - 校验字段完整性、`messages` 格式与 `<think>` 包裹结构
+
+### 训练
+
+- `scripts/train_lora_local.py`
+  - 当前默认主线模型为 `Qwen/Qwen3.5-0.8B`
+  - 已支持通过 `--model-id` / `--model-tag` 扩展不同模型规模
+  - 负责生成标准命名的训练 run 与 checkpoint
+
+### 评测
+
+- `scripts/eval_compare_full.py`
+  - 当前正式基线评测入口
+  - 已支持通过 `--model-id` / `--model-tag` 匹配不同模型主线
+  - 规则答案抽取 + `DeepSeek V4 Flash` 复核
+
+- `scripts/inspect_think_samples.py`
+  - 已支持通过 `--model-id` / `--model-tag` 适配不同模型
+  - 抽样查看 baseline / finetuned 模型在白话题、文言题上的 `think` 输出
+
+## 快速开始
+
+优先使用 `uv`：
 
 ```bash
 uv sync
+uv run python scripts/validate_dataset.py data/final/train_s800_think.jsonl --expect-think-tags
+uv run python scripts/train_lora_local.py --dataset-tag s800_think --run-tag smoke
 ```
 
-如果只想快速安装依赖，也可以：
+如果只需要兜底安装：
 
 ```bash
 uv pip install -r requirements.txt
 ```
 
-统一用项目内 Python 执行脚本：
+## 推荐阅读顺序
 
-```bash
-uv run python scripts/validate_dataset.py data/final/train_s800.jsonl
-uv run python scripts/train_lora_local.py --dataset-tag s800_think
-```
+1. [docs/STAGE2_EXECUTION_GUIDE.md](docs/STAGE2_EXECUTION_GUIDE.md)  
+   第二阶段的统一分工、限制条件与协作规则。
 
-说明：
+2. [docs/PROJECT_PROGRESS.md](docs/PROJECT_PROGRESS.md)  
+   已完成实验、阶段结论与当前主线判断。
 
-- `ms-swift` 是外部依赖包，对应代码里的 `import swift`
-- AutoDL 当前实测环境版本见下：
-  - `Python 3.12.3`
-  - `torch 2.11.0+cu130`
-  - `ms_swift 4.1.3`
-  - `transformers 5.6.2`
-- AutoDL 上训练和评测优先用 Linux 环境
-- 本地如果只做数据整理和文档查看，也建议先把这套依赖装起来
+3. [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md)  
+   数据字段规范与 `xxx_think` 命名规则。
 
-## 关键脚本
+4. [docs/REPOSITORY_RULES.md](docs/REPOSITORY_RULES.md)  
+   仓库命名、目录职责、脚本使用方式与追溯要求。
 
-- `scripts/generate_dataset.py`
-  - `python scripts/generate_dataset.py --variant visible`
-  - `python scripts/generate_dataset.py --variant think --think-style by_view`
-- `scripts/build_dataset.py`
-  - 公开数据集增强入口；从 `data/raw` 读取 GSM8K / Math23k，调用 DeepSeek API 生成白话、文言与结构化 think 中间数据
-  - 示例：`python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim`
-- `scripts/format_gsm8k_messages.py`
-  - 将增强后的 GSM8K 数据展开为 `messages` 格式，并按 `data_type` 分别输出 JSONL
-  - 示例：`python scripts/format_gsm8k_messages.py --input data/interim/gsm8k --output-dir data/final/gsm8k_think --data-types modern classical modern2classical modern2structure`
-- `scripts/validate_dataset.py`
-  - `python scripts/validate_dataset.py data/final/train_s800.jsonl`
-  - `python scripts/validate_dataset.py data/final/train_s800_think.jsonl --expect-think-tags`
-- `scripts/train_lora_local.py`
-  - `python scripts/train_lora_local.py --dataset-tag s800`
-  - `python scripts/train_lora_local.py --dataset-tag s800_think --run-tag think_pilot`
-- `scripts/eval_compare_full.py`
-  - 两阶段评测入口，先做规则抽取，再用 `DeepSeek V4 Flash` 复核错例或全量样本
-- `scripts/inspect_think_samples.py`
-  - 抽样查看 base / finetuned 模型在白话题、文言题上的 `think` 输出
-
-## 公开数据集构建到训练
-
-公开数据集原始文件有两个前置依赖，新同学普通 `git clone` 后需要先执行：
-
-```bash
-git lfs pull
-git submodule update --init --recursive
-```
-
-原因：
-
-- `data/raw/gsm8k` 中的 parquet 文件由 Git LFS 管理
-- `data/raw/Math23k` 是 git submodule
-
-推荐的 GSM8K pilot 全流程如下：
-
-```bash
-python scripts/build_dataset.py \
-  --source gsm8k \
-  --limit 500 \
-  --ratio 8:2 \
-  --output-dir data/interim
-```
-
-```bash
-python scripts/format_gsm8k_messages.py \
-  --input data/interim/gsm8k \
-  --output-dir data/final/gsm8k_think \
-  --data-types modern classical modern2classical modern2structure
-```
-
-当前新增公开数据集不走旧的 `data/final/train_<dataset_tag>.jsonl` 默认查找口径，而是显式传入训练/验证文件。以 `modern` 视图为例：
-
-```bash
-python scripts/train_lora_local.py \
-  --dataset-tag gsm8k_think_modern \
-  --train-file data/final/gsm8k_think/train/modern.jsonl \
-  --val-file data/final/gsm8k_think/test/modern.jsonl \
-  --run-tag pilot_modern
-```
-
-如果训练 `modern2classical`，只需要替换文件路径：
-
-```bash
-python scripts/train_lora_local.py \
-  --dataset-tag gsm8k_think_m2c \
-  --train-file data/final/gsm8k_think/train/modern2classical.jsonl \
-  --val-file data/final/gsm8k_think/test/modern2classical.jsonl \
-  --run-tag pilot_m2c
-```
-
-## 推荐阅读与协作顺序
-
-1. 先读 [docs/README.md](docs/README.md)
-2. 再看 [docs/PROJECT_PROGRESS.md](docs/PROJECT_PROGRESS.md)
-3. 所有组员协作更新统一写入 [docs/TEAM_SYNC_LOG.md](docs/TEAM_SYNC_LOG.md)
+5. [docs/TEAM_SYNC_LOG.md](docs/TEAM_SYNC_LOG.md)  
+   组员接龙式协作日志。
 
 ## 参考 Run
 
 - `runs/20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
-  - 用途：教学型全链路样板
-  - 特点：高频保存、高频评测，适合看目录结构和产物组成
+  - 全链路教学样板
+  - 用来看目录结构、checkpoint 与日志产物
+
 - `runs/20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
-  - 用途：正式训练参数参考
-  - 特点：评测频率更合理，已完整跑通并正常收敛，适合后续组员直接仿照开新实验
+  - 当前正式参考训练模板
+  - 后续新实验优先参考该参数配置
 
 说明：
 
-- 不要直接照抄 `smoke_ref` 的 `eval_steps=1` 配置去跑正式实验
-- AutoDL 上建议显式使用 `.venv/bin/python`，不要依赖交互 shell 的 PATH
+- 历史数据文件仍沿用 `s800 / s800_think` 路径，保证兼容
+- 从现在开始，新的 run 目录名会把这类旧标签映射为更清晰的规范名，例如：
+  - `s800` -> `synth_structuredthink_800_v1`
+  - `s800_think` -> `synth_think_800_v1`
+- 这样既不破坏旧文件，又能让后续 run 名更适合横向比较
+- `model_tag` 也已进入统一命名层，后续 `0.8B / 2B / 4B` 会通过同一套 run 命名规则呈现
 
-## 为什么显式 Think 监督重要
+## 当前约束
 
-之前的数据只监督 assistant 可见输出，Swift/Qwen 模板会自动补一个空的 `<think></think>` 区块，因此模型不会学到“中文/文言 think 内容本身”。现在的 `s800_think` 显式把目标思维文本放进 `<think>...</think>`，可以直接验证：
-
-- 微调后 `think` 是否从英文转成中文
-- 白话题面是否对应白话思维
-- 文言题面是否对应文言思维
-- 答案正确率是否仍然保持稳定
-
-说明：从命名规范上，仓库后续统一使用 `xxx_think` 表示“显式监督的思维内容”。旧名称 `structured_cot` 仅视作历史兼容口径，后续规范字段名统一改为 `structured_think`。
-
-## 最新 Think 结果
-
-第一轮 think-supervised pilot 已经证明这条路线有效：
-
-- 定性结果：
-  - 白话题输出白话 `think`
-  - 文言题输出文言 `think`
-  - 不再出现默认英文 `think`
-- 定量结果：
-  - `test_s800_think` rule-based baseline：`44/80 = 55.0%`
-  - `test_s800_think` rule-based finetuned：`80/80 = 100%`
-  - finetuned `answer_marker_rate = 1.0`
-  - finetuned `avg_chars = 50.96`
-
-示例：
-
-```text
-Q: 小明有12颗糖，送给小红5颗，还剩几颗？
-<think>
-原来有12颗糖，送给小红5颗，所以用减法：12-5=7。
-</think>
-
-答案：7。
-```
-
-```text
-Q: 明有糖12颗，遗红5颗，尚余几何？
-<think>
-初有12颗，遗5颗，故12-5=7。
-</think>
-
-答案：7。
-```
+- 所有显式思维监督字段统一使用 `xxx_think`
+- 不新增新的 `xxx_cot` 字段族
+- 新数据必须可追溯到 `source / family / split`
+- 新评测不得私自修改现有 baseline 口径
+- 重要结论必须落文档，不能只留在聊天记录中
 
 ## 运行环境
 
-- AutoDL
+当前主力实验环境：
+
 - Python `3.12`
 - PyTorch `2.8.0`
 - CUDA `12.8`
 - GPU：RTX 4090 24GB
+- 训练 / 评测环境：AutoDL Linux
 
-## 说明
+## 协作约定
 
-- `runs/`、`artifacts/` 属于实验产物目录，新增实验必须保证目录名可追溯。
-- 新结论先写入 `docs/PROJECT_PROGRESS.md`，再决定是否进入 README。
-- 组员之间不要私聊式同步实验细节，统一落到 `docs/TEAM_SYNC_LOG.md`。
-- 正式汇报时优先区分三类指标：`Rule-based Accuracy`、`LLM-reviewed Accuracy`、`Answer Marker Rate`。
+- 新结论写入 `docs/PROJECT_PROGRESS.md`
+- 新任务分工与限制条件看 `docs/STAGE2_EXECUTION_GUIDE.md`
+- 日常推进、实验目录、遗留问题统一追加到 `docs/TEAM_SYNC_LOG.md`
+
+如果你是新加入本项目的同学，不需要先读全部代码。先看 `README`、`STAGE2_EXECUTION_GUIDE.md` 和 `DATA_SCHEMA.md`，再进入你负责的脚本与数据部分即可。

@@ -1,110 +1,3 @@
-"""
-中文数学应用题 LoRA 微调实验的正式评测入口。
-
-整体思路
-========
-
-同一份测试集（默认 `data/final/test_{dataset_tag}.jsonl`）上同时跑两条推理：
-
-- `baseline`：原始 `Qwen/Qwen3.5-0.8B`，**不加** LoRA adapter
-- `finetuned`：在 baseline 之上 `PeftModel.from_pretrained(model, adapter)` 套上指定 checkpoint 的 LoRA adapter
-
-两条推理用**完全相同**的解码参数（默认 `max_tokens=512, temperature=0, top_p=1, top_k=20`），
-保证结果只反映 LoRA 权重差异。然后做两阶段评测：
-
-1. 规则阶段：从模型输出里抽数值答案，与 gold 做字符串相等比较
-2. LLM 复核阶段（可选）：把规则判错（或全部）样本送 DeepSeek V4 Flash 复核
-
-最终在 `metrics/compare_summary.json` 里同时落两套准确率，并细分到 family / view。
-
-阶段一：规则抽取与衍生指标
-==========================
-
-`extract_answer(text)` 按下面**优先级**回退抽数值（前面命中就不再往后试）：
-
-1. `答案[：: ]*([0-9.]+)`        ── 训练目标的正式答案格式
-2. `故[^。\\n=]*=\\s*([0-9.]+)`  ── 文言风格收尾 `故 ... = N`
-3. `=\\s*([0-9.]+)。?\\s*$`      ── 输出最后一行尾部的 `=N`
-4. 全文最后一个数字              ── 兜底，准确率较脆
-
-抽到的值与 `gold_answer` 做**字符串相等**比较（不做四舍五入、不做数值容差）。
-
-`summarize()` 在 overall / by_family / by_view 三个层级各算一份：
-
-- `accuracy`           = 规则抽取正确数 / 总数
-- `answer_marker_rate` = 输出里出现「答案」二字的比例
-- `think_rate`         = 输出里出现 `<think>` 的比例
-- `avg_chars`          = 输出字符长度均值
-- `avg_lines`          = 输出行数均值
-- `total / correct / has_answer_marker` = 上面三个比例的原始计数
-
-`answer_marker_rate` 是**门控指标**：它显著 <1 通常意味着 `max_tokens` 不够，模型输出在
-「答案：N」这一串生成之前就被截断了——这时 `accuracy` 会被人为压低，整张表都该打折看。
-项目早期 `max_tokens=256` 那轮就栽在这里（见 docs/PROJECT_PROGRESS.md）。
-
-阶段二：DeepSeek V4 Flash 复核
-==============================
-
-`--llm-review-mode` 三档：
-
-- `none`：跳过复核，只看规则结果
-- `mismatches`：只对 `rule_correct=False` 的样本复核（**推荐**，成本最低）
-- `all`：所有样本都复核（用来量「规则抽对但模型其实答错」的反向错误）
-
-`deepseek_review()` 用 OpenAI 兼容协议 POST 到 `https://api.deepseek.com/chat/completions`：
-
-- 模型固定 `deepseek-v4-flash`
-- `temperature=0`, `max_tokens=256`
-- `response_format={"type":"json_object"}` 强制 JSON
-- `thinking={"type":"disabled"}` 关闭裁判模型自己的 `<think>`，降本
-- 系统提示「只输出 JSON」，用户提示给 question / gold_answer / assistant_response
-
-返回 `{"verdict":"correct|incorrect","final_answer":"...","reason":"..."}`，
-`apply_llm_review()` 用 `verdict` 覆盖该样本的 `final_correct`，并记录：
-
-- `reviewed_cases`       ── 实际调用次数
-- `changed_to_correct`   ── 规则错 → LLM 判对（截断/格式问题被救回）
-- `changed_to_incorrect` ── 规则对 → LLM 判错（数值蒙对、推理错的反向 case）
-- `final_accuracy`       ── 用复核后 `final_correct` 重算的准确率
-
-复核详情写在 `metrics/{baseline|finetuned}_llm_review.json`，可用来做错例分析。
-
-需要环境变量 `DEEPSEEK_API_KEY`。`--llm-review-max-cases N` 可硬限调用上限防止跑飞。
-
-报告时区分的三种准确率口径
-==========================
-
-写汇报材料时**必须区分**：
-
-- `Rule-based Accuracy` ── `summary.{model}.overall.accuracy`，规则抽取
-- `LLM-reviewed Accuracy` ── `summary.{model}.llm_review.final_accuracy`，复核覆盖后
-- `Answer Marker Rate`    ── `summary.{model}.overall.answer_marker_rate`，门控信号
-
-只贴规则准确率会低估，只贴复核准确率会掩盖截断问题；三者一起看才完整。
-
-run 目录与产物
-==============
-
-新 run 由 `make_run_dir(stage='eval', ...)` 生成，固定五个子目录：
-
-- `predictions/baseline.json`、`predictions/finetuned.json` ── 每条样本的原始模型输出
-- `metrics/compare_summary.json`                            ── 主结果文件
-- `metrics/{baseline|finetuned}_llm_review.json`            ── 复核详情（启用时）
-- `logs/` `samples/` `checkpoints/`                         ── 评测阶段一般不写
-
-复用旧 prediction 做 LLM 复核：传 `--existing-run-dir runs/<eval_run>`，会从该 run 里
-读 `predictions/{baseline,finetuned}.json`，**不重新推理**，只补复核结果。这样可以独立
-迭代复核策略（比如换裁判模型、换提示），无需重跑昂贵的本地推理。
-
-关键约束
-========
-
-- `--max-tokens` 默认 512，**评测之间必须保持一致**。两个模型用不同 max_tokens 比就废了。
-- 解码参数全确定性（`temperature=0, top_p=1`），同输入同 checkpoint 结果可复现。
-- `extract_answer` 与 `gold_answer` 都是字符串相等，gold 里的 `1700` 与模型输出的 `1,700`
-  会被判错——目前数据集 gold 都是纯数字，没踩到，新增数据集需保持这个口径。
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -121,7 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.common.naming import DEFAULT_MODEL_TAG, dataset_file, make_run_dir
+from src.common.naming import dataset_file, default_dataset_tag, make_run_dir, normalize_model_tag
 from src.common.paths import ROOT
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
@@ -132,7 +25,9 @@ DEFAULT_DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path, default=ROOT)
-    parser.add_argument('--dataset-tag', type=str, default='s800_think')
+    parser.add_argument('--dataset-tag', type=str, default=default_dataset_tag('visible'))
+    parser.add_argument('--model-id', type=str, default=MODEL_ID)
+    parser.add_argument('--model-tag', type=str, default=None)
     parser.add_argument('--test-file', type=Path, default=None)
     parser.add_argument('--checkpoint', type=Path, required=False)
     parser.add_argument('--existing-run-dir', type=Path, default=None)
@@ -153,12 +48,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_engine(adapter: str | None, max_batch_size: int):
+def build_engine(model_id: str, adapter: str | None, max_batch_size: int):
     from peft import PeftModel
     from swift import get_model_processor, get_template
     from swift.infer_engine import TransformersEngine
 
-    model, tokenizer = get_model_processor(MODEL_ID)
+    model, tokenizer = get_model_processor(model_id)
     if adapter:
         model = PeftModel.from_pretrained(model, adapter)
     template_type = model.model_meta.template
@@ -266,6 +161,7 @@ def deepseek_review(row: dict, args: argparse.Namespace) -> dict:
 
 def run_model(
     name: str,
+    model_id: str,
     adapter: str | None,
     requests: list[InferRequest],
     rows: list[dict],
@@ -274,7 +170,7 @@ def run_model(
 ) -> list[dict]:
     from swift.infer_engine import RequestConfig
 
-    engine = build_engine(adapter, args.max_batch_size)
+    engine = build_engine(model_id, adapter, args.max_batch_size)
     request_config = RequestConfig(
         max_tokens=args.max_tokens,
         temperature=args.temperature,
@@ -449,6 +345,7 @@ def print_result(summary: dict) -> dict:
 def main() -> None:
     args = parse_args()
     root = args.root.resolve()
+    model_tag = normalize_model_tag(args.model_id, args.model_tag)
     if args.existing_run_dir:
         run_dir = args.existing_run_dir.resolve()
         baseline_rows, finetuned_rows = load_existing_predictions(run_dir)
@@ -464,12 +361,12 @@ def main() -> None:
         run_dir = make_run_dir(
             stage='eval',
             dataset_tag=args.dataset_tag,
-            model_tag=DEFAULT_MODEL_TAG,
+            model_tag=model_tag,
             suffix=args.run_tag,
             base_dir=root / 'runs',
         )
-        baseline_rows = run_model('baseline', None, requests, rows, run_dir, args)
-        finetuned_rows = run_model('finetuned', str(args.checkpoint), requests, rows, run_dir, args)
+        baseline_rows = run_model('baseline', args.model_id, None, requests, rows, run_dir, args)
+        finetuned_rows = run_model('finetuned', args.model_id, str(args.checkpoint), requests, rows, run_dir, args)
         checkpoint = str(args.checkpoint)
 
     (run_dir / 'metrics').mkdir(parents=True, exist_ok=True)
@@ -480,6 +377,8 @@ def main() -> None:
 
     summary = {
         'run_dir': str(run_dir),
+        'model_id': args.model_id,
+        'model_tag': model_tag,
         'checkpoint': str(checkpoint),
         'test_file': str(test_file),
         'count': len(baseline_rows),

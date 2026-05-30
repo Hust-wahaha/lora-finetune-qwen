@@ -31,8 +31,6 @@
 - 只放命令行入口脚本
 - 当前主入口包括：
   - `generate_dataset.py`
-  - `build_dataset.py`
-  - `format_gsm8k_messages.py`
   - `validate_dataset.py`
   - `train_lora_local.py`
   - `eval_compare_full.py`
@@ -84,6 +82,9 @@
 
 - 当前历史数据集 `s800`、`s800_think` 保留兼容，不强制重命名
 - 从现在开始新增数据集，统一按新规则命名
+- 对于历史数据集，数据文件名继续保留旧标签；但新生成的 `run` 目录名会自动映射为更清晰的规范标签：
+  - `s800` -> `synth_structuredthink_800_v1`
+  - `s800_think` -> `synth_think_800_v1`
 
 ### run 目录命名
 
@@ -110,6 +111,22 @@
 - `20260517_195355_train_s800_think_qwen3.5-0.8b_smoke_ref`
 - `20260517_203504_train_s800_think_qwen3.5-0.8b_reference_v1`
 
+### 模型标签 `model_tag`
+
+统一要求：
+
+- 优先从 `model_id` 自动推导
+- 必要时允许手工通过 `--model-tag` 覆盖
+- 新模型不要在脚本里再次写死新的字符串
+
+当前已内置常用映射示例：
+
+- `Qwen/Qwen3.5-0.8B` -> `qwen3.5-0.8b`
+- `Qwen/Qwen3.5-2B` -> `qwen3.5-2b`
+- `Qwen/Qwen3.5-4B` -> `qwen3.5-4b`
+
+后续新增模型时，应优先补到 `src/common/naming.py`，保持训练、评测、抽样三类 run 的命名口径一致。
+
 ## 三、数据字段命名规则
 
 - 所有显式思维监督字段统一命名为 `xxx_think`
@@ -129,8 +146,6 @@
 
 ### 数据生成
 
-合成模板数据：
-
 ```bash
 python scripts/generate_dataset.py --variant think --think-style by_view --dataset-tag s800_think
 ```
@@ -140,106 +155,6 @@ python scripts/generate_dataset.py --variant think --think-style by_view --datas
 - 生成 `data/interim/aligned_*.jsonl`
 - 生成 `data/final/train/val/test_*.jsonl`
 - 生成数据摘要 json
-
-公开数据集 API 增强：
-
-普通 `git clone` 后，公开原始数据不能假设已经就绪。首次运行前必须在仓库根目录执行：
-
-```bash
-git lfs pull
-git submodule update --init --recursive
-```
-
-说明：
-
-- `data/raw/gsm8k` 的 parquet 文件由 Git LFS 管理
-- `data/raw/Math23k` 是 git submodule
-- 如果没有做这两步，容易出现“文件路径存在但实际内容无法读取”的问题
-
-```bash
-python scripts/build_dataset.py --source gsm8k --limit 500 --ratio 8:2 --output-dir data/interim
-```
-
-作用：
-
-- 从 `data/raw/gsm8k` 或 `data/raw/Math23k` 读取原始数据
-- 调用 DeepSeek API 生成白话题面、文言题面、白话 think、文言 think、结构化 think
-- 在输出根目录下按数据集建子目录，例如：
-  - `data/interim/gsm8k/checkpoint_train.jsonl`
-  - `data/interim/gsm8k/checkpoint_test.jsonl`
-  - `data/interim/gsm8k/train.jsonl`
-  - `data/interim/gsm8k/test.jsonl`
-  - `data/interim/gsm8k/metadata.json`
-- `--limit` 表示 train 数量，`--ratio` 决定 test 数量；默认 `8:2`
-
-运行前要求：
-
-- 必须设置 `DEEPSEEK_API_KEY`
-- GSM8K 原始 parquet 读取需要 `pyarrow` 或 `fastparquet`；仓库依赖已加入 `pyarrow`
-- 建议先用 `--dry-run` 检查原始文件路径、split 配额和依赖状态
-
-GSM8K messages 格式化：
-
-```bash
-python scripts/format_gsm8k_messages.py \
-  --input data/interim/gsm8k \
-  --output-dir data/final/gsm8k_think \
-  --data-types modern classical modern2classical modern2structure
-```
-
-作用：
-
-- 将 API 增强 checkpoint 转换成训练可直接读取的 `messages` JSONL
-- 默认读取 `data/interim/gsm8k/train.jsonl` 和 `data/interim/gsm8k/test.jsonl`
-- 每个 split 单独建子目录，每种 `data_type` 单独输出一个文件：
-  - `data/final/gsm8k_think/train/modern.jsonl`
-  - `data/final/gsm8k_think/train/classical.jsonl`
-  - `data/final/gsm8k_think/train/modern2classical.jsonl`
-  - `data/final/gsm8k_think/train/modern2structure.jsonl`
-  - `data/final/gsm8k_think/test/modern.jsonl`
-  - `data/final/gsm8k_think/test/classical.jsonl`
-- 每个 split 子目录写入 `metadata.json`、`error_ids.txt`、`error_ids.jsonl`
-
-### 公开数据集训练入口
-
-当前 `scripts/train_lora_local.py` 的历史默认口径是：
-
-```text
-data/final/train_<dataset_tag>.jsonl
-data/final/val_<dataset_tag>.jsonl
-```
-
-而公开数据集格式化后的 canonical 路径是：
-
-```text
-data/final/gsm8k_think/{train,test}/{data_type}.jsonl
-```
-
-因此训练公开数据集时必须显式传入 `--train-file` 和 `--val-file`。以 `modern` 为例：
-
-```bash
-python scripts/train_lora_local.py \
-  --dataset-tag gsm8k_think_modern \
-  --train-file data/final/gsm8k_think/train/modern.jsonl \
-  --val-file data/final/gsm8k_think/test/modern.jsonl \
-  --run-tag pilot_modern
-```
-
-以 `modern2classical` 为例：
-
-```bash
-python scripts/train_lora_local.py \
-  --dataset-tag gsm8k_think_m2c \
-  --train-file data/final/gsm8k_think/train/modern2classical.jsonl \
-  --val-file data/final/gsm8k_think/test/modern2classical.jsonl \
-  --run-tag pilot_m2c
-```
-
-说明：
-
-- 这里暂时用 test split 作为 `--val-file`，用于 pilot 训练中的 eval
-- 正式实验如果需要保留独立 test，应先从 train 中切出 val，或扩展格式化脚本生成 val split
-- 不再推荐混用 `data/final/gsm-1k/...`、`data/final/gsm8k/...` 等临时目录作为正式入口；新增公开数据集默认使用 `data/final/gsm8k_think/`
 
 ### 数据校验
 

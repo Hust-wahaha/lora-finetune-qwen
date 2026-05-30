@@ -245,6 +245,63 @@
   - `structured_cot` 仅作为历史兼容字段保留
 - 当前仓库仍保持旧实验结果不变，规范化只影响后续新增数据和新增 run
 
+## 2026-05-30 第二阶段主线收敛
+
+- 当前项目阶段正式从“显式 `think` 监督是否可行”切换到“如何形成可扩展、可比较、可汇报的实验体系”
+- 第二阶段的三条主轴明确为：
+  - `Data Set`
+  - `Model`
+  - `Benchmark`
+- 当前代码现状下，这三条主轴分别对应：
+  - `Data Set`：扩展 `s800 / s800_think` 之外的数据来源与难度层次，同时保持 `xxx_think` schema 稳定
+  - `Model`：在 `0.8B` 主线基础上扩展到 `2B / 4B`，并系统比较 `modern_think / classical_think / structured_think`
+  - `Benchmark`：以现有 `eval_compare_full.py` 为稳定基线，冻结答案抽取、复核与对照组口径，再逐步扩指标
+- 当前阶段不再以“单次训练跑通”为目标，而以“多数据版本、多模型规模、多监督形式之间的横向可比性”为目标
+- 第二阶段已经新增统一执行文档：
+  - `docs/STAGE2_EXECUTION_GUIDE.md`
+- 新文档的定位不是 brainstorm，而是当前协作正式入口，用于统一：
+  - 每位组员的任务边界
+  - 不可破坏的主线限制条件
+  - 文档、脚本、实验目录之间的协作规则
+
+## 2026-05-30 README 展示化与 run 命名规范化
+
+- 根 `README.md` 已从“阶段记录型说明”升级为“研究问题 + 方法概览 + 实验矩阵 + 协作入口”的展示型首页
+- 当前首页已明确：
+  - 项目研究问题
+  - 三条第二阶段主轴
+  - 方法流程
+  - 实验矩阵
+  - 文档阅读顺序
+- 同时对 `run` 命名逻辑做了兼容式规范化：
+  - 历史数据文件仍保留 `s800 / s800_think`
+  - 但新生成的 `run` 目录名不再直接暴露这些旧标签，而会自动映射为更清晰的规范名
+  - 当前映射规则：
+    - `s800` -> `synth_structuredthink_800_v1`
+    - `s800_think` -> `synth_think_800_v1`
+- 这样做的目的是：
+  - 不破坏现有数据文件路径与旧实验结果
+  - 同时让后续新增训练、评测、抽样 run 的目录名更适合横向比较与长期追溯
+
+## 2026-05-30 model_tag 规范化
+
+- 为了给后续 `2B / 4B` 模型轴扩展铺路，当前主线已不再把 `model_tag` 只当成写死的 `qwen3.5-0.8b`
+- 训练、评测、抽样三类脚本现在统一支持：
+  - `--model-id`
+  - `--model-tag`
+- 当前规范是：
+  - 默认优先根据 `model_id` 自动推导 `model_tag`
+  - 仅在需要特殊展示名时才手工覆盖 `--model-tag`
+- 命名逻辑已经集中到：
+  - `src/common/naming.py`
+- 当前内置的常用映射包括：
+  - `Qwen/Qwen3.5-0.8B` -> `qwen3.5-0.8b`
+  - `Qwen/Qwen3.5-2B` -> `qwen3.5-2b`
+  - `Qwen/Qwen3.5-4B` -> `qwen3.5-4b`
+- 这样后续模型规模扩展时：
+  - 不需要再改一轮 run 命名规则
+  - 训练、评测、抽样目录名会天然保持一致
+
 ## 2026-05-17 AutoDL 全链路参考 run
 
 - 为了让后续组员有可以直接参考的训练样板，新增了两类参考 run：
@@ -349,40 +406,3 @@
 - `reference_v1` 不只是提升了最终答案稳定性，也把 `<think>` 内部内容从英文长推理改成了受监督的中文思维输出
 - 这说明当前数据与训练方式确实实现了“显式监督 think 内容”的目标
 - 同时也说明 baseline 的 `55%` 只是规则抽取口径偏低，经过 LLM 复核后其真实正确率同样可以回到 `100%`
-
-## 2026-05-27 公开数据集构建组件纳入仓库
-
-- 在原有合成模板数据 `s800 / s800_think` 主线之外，新增公开数据集构建入口：
-  - `scripts/build_dataset.py`
-  - `scripts/format_gsm8k_messages.py`
-- 新组件当前面向 GSM8K / Math23k 的数据增强与训练格式化：
-  - `build_dataset.py` 负责读取 `data/raw` 中的公开数据，调用 DeepSeek API 生成白话题面、文言题面、白话 think、文言 think、结构化 think
-  - `format_gsm8k_messages.py` 负责把增强后的 GSM8K split 数据展开为 `messages` 格式，并按 `data_type` 分文件输出
-- `build_dataset.py` 已支持 split 独立管理：
-  - 输出根目录通过 `--output-dir` 指定
-  - 不同数据集写入不同子目录，例如 `data/interim/gsm8k/`
-  - 每个 split 有独立文件和 checkpoint，例如 `train.jsonl`、`test.jsonl`、`checkpoint_train.jsonl`、`checkpoint_test.jsonl`
-- `limit + ratio` 规则已固定：
-  - `--limit` 指定 train 数量
-  - `--ratio` 指定 train:test 比例，默认 `8:2`
-  - 例如 `--limit 500 --ratio 8:2` 会计划生成约 `500` 条 train 与 `125` 条 test
-- `format_gsm8k_messages.py` 已支持多种题面 / think 风格组合：
-  - `modern`
-  - `classical`
-  - `modern2classical`
-  - `modern2structure`
-  - 以及 `classical2modern`、`classical2structure` 等扩展组合
-- 最终输出建议进入：
-  - `data/final/gsm8k_think/train/{data_type}.jsonl`
-  - `data/final/gsm8k_think/test/{data_type}.jsonl`
-- 已补充公开原始数据前置步骤：
-  - GSM8K parquet 由 Git LFS 管理，首次使用前需要 `git lfs pull`
-  - Math23k 是 git submodule，首次使用前需要 `git submodule update --init --recursive`
-- 已明确新数据集训练入口：
-  - 当前公开数据集 final 路径不走 `train_<dataset_tag>.jsonl / val_<dataset_tag>.jsonl` 默认口径
-  - 训练时通过 `--train-file data/final/gsm8k_think/train/{data_type}.jsonl`
-  - 验证时通过 `--val-file data/final/gsm8k_think/test/{data_type}.jsonl`
-- 这次更新的定位：
-  - 不是替代 `s800_think`
-  - 而是把后续大规模公开数据扩展的数据生产链路标准化
-  - 后续训练与评测仍需基于新增数据版本单独建立 `dataset_tag` 和 run 记录

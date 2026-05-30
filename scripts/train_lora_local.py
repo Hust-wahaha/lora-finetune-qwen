@@ -9,7 +9,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.common.naming import DEFAULT_MODEL_TAG, dataset_file, make_run_dir
+from src.common.naming import dataset_file, default_dataset_tag, make_run_dir, normalize_model_tag
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
 SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证。'
@@ -17,7 +17,9 @@ SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁�
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset-tag', type=str, default='s800')
+    parser.add_argument('--dataset-tag', type=str, default=default_dataset_tag('visible'))
+    parser.add_argument('--model-id', type=str, default=MODEL_ID)
+    parser.add_argument('--model-tag', type=str, default=None)
     parser.add_argument('--train-file', type=Path, default=None)
     parser.add_argument('--val-file', type=Path, default=None)
     parser.add_argument('--run-tag', type=str, default=None)
@@ -31,7 +33,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--save-steps', type=int, default=25)
     parser.add_argument('--eval-steps', type=int, default=25)
     parser.add_argument('--logging-steps', type=int, default=5)
-    parser.add_argument('--dataloader-num-workers', type=int, default=1)
     return parser.parse_args()
 
 
@@ -57,10 +58,11 @@ def main() -> None:
     args = parse_args()
     train_path = resolve_dataset_path(args, 'train')
     val_path = resolve_dataset_path(args, 'val')
+    model_tag = normalize_model_tag(args.model_id, args.model_tag)
     run_dir = make_run_dir(
         stage='train',
         dataset_tag=args.dataset_tag,
-        model_tag=DEFAULT_MODEL_TAG,
+        model_tag=model_tag,
         suffix=args.run_tag or 'baseline',
     )
     output_dir = run_dir / 'checkpoints'
@@ -68,7 +70,8 @@ def main() -> None:
     with (run_dir / 'metrics' / 'run_config.json').open('w', encoding='utf-8') as f:
         json.dump(
             {
-                'model': MODEL_ID,
+                'model': args.model_id,
+                'model_tag': model_tag,
                 'dataset_tag': args.dataset_tag,
                 'train_dataset': str(train_path),
                 'val_dataset': str(val_path),
@@ -84,7 +87,7 @@ def main() -> None:
             indent=2,
         )
 
-    model, tokenizer = get_model_processor(MODEL_ID)
+    model, tokenizer = get_model_processor(args.model_id)
     template = get_template(tokenizer, default_system=args.system, max_length=args.max_length)
     template.set_mode('train')
 
@@ -124,7 +127,7 @@ def main() -> None:
         num_train_epochs=args.num_train_epochs,
         save_total_limit=2,
         logging_steps=args.logging_steps,
-        dataloader_num_workers=args.dataloader_num_workers,
+        dataloader_num_workers=1,
         data_seed=42,
     )
 

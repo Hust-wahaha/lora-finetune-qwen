@@ -9,7 +9,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.common.naming import DEFAULT_MODEL_TAG, default_dataset_tag, make_run_dir
+from src.common.naming import default_dataset_tag, make_run_dir, normalize_model_tag
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
 SYSTEM = '你是一个擅长中文数学应用题的助手，请尽量给出简洁且正确的答案。'
@@ -29,16 +29,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--checkpoint', type=Path, default=None)
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--dataset-tag', type=str, default=default_dataset_tag('think'))
+    parser.add_argument('--model-id', type=str, default=MODEL_ID)
+    parser.add_argument('--model-tag', type=str, default=None)
     parser.add_argument('--max-tokens', type=int, default=512)
     return parser.parse_args()
 
 
-def build_engine(adapter: Path | None):
+def build_engine(model_id: str, adapter: Path | None):
     from peft import PeftModel
     from swift import get_model_processor, get_template
     from swift.infer_engine import TransformersEngine
 
-    model, tokenizer = get_model_processor(MODEL_ID)
+    model, tokenizer = get_model_processor(model_id)
     if adapter:
         model = PeftModel.from_pretrained(model, adapter)
     template_type = model.model_meta.template
@@ -48,14 +50,15 @@ def build_engine(adapter: Path | None):
 
 def main() -> None:
     args = parse_args()
+    model_tag = normalize_model_tag(args.model_id, args.model_tag)
     run_dir = make_run_dir(
         stage='inspect',
         dataset_tag=args.dataset_tag,
-        model_tag=DEFAULT_MODEL_TAG,
+        model_tag=model_tag,
         suffix=args.tag or 'think-samples',
     )
     from swift.infer_engine import InferRequest, RequestConfig
-    engine = build_engine(args.checkpoint)
+    engine = build_engine(args.model_id, args.checkpoint)
     requests = [InferRequest(messages=[{'role': 'user', 'content': row['query']}]) for row in SAMPLES]
     request_config = RequestConfig(max_tokens=args.max_tokens, temperature=0.0, top_p=1.0, top_k=20)
     responses = engine.infer(requests, request_config)
@@ -72,6 +75,8 @@ def main() -> None:
     output_path = run_dir / 'predictions' / 'think_samples.json'
     output_path.write_text(json.dumps(output_rows, ensure_ascii=False, indent=2), encoding='utf-8')
     summary = {
+        'model_id': args.model_id,
+        'model_tag': model_tag,
         'checkpoint': str(args.checkpoint) if args.checkpoint else None,
         'output_file': str(output_path),
         'count': len(output_rows),
