@@ -144,7 +144,7 @@
 ## 方法框架图
 
 <div align="center">
-  <img src="docs/assets/method-overview.svg" alt="方法框架图" width="100%"/>
+  <img src="docs/assets/method-overview.png" alt="方法框架图" width="100%"/>
 </div>
 
 ## Key Results
