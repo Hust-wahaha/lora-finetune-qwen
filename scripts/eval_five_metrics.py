@@ -5,8 +5,10 @@
 微调模型（可选追加 baseline）做 `max_tokens` 列表扫描，每个组合算 3 个指标：
 
 1. cot_completeness_rate       —— `<think>...</think>` 是否闭合
-2. generation_completion_rate  —— 进一步要求出现「答案：N。」（数字+句号），即整条没被截
-3. answer_accuracy             —— 规则抽数值并与 gold 字符串相等
+2. generation_completion_rate  —— 整段以「N。」（阿拉伯数字+句号）收尾，「答案：」前缀可有可无；
+                                  亦即整条没被截。微调后实测主流输出 `…</think>\n\n78。`
+                                  与训练目标格式 `…\n\n答案：78。` 都接受
+3. answer_accuracy             —— 从整段末尾抽出阿拉伯数字并与 gold 字符串相等
 
 模型在 CLI 用 `--model name:adapter_path` 传入，可重复。`--include-baseline` 自动追加
 `baseline:none`（不加 LoRA）。早期 `name:adapter:expected_style` 三段式仍兼容，第三段
@@ -82,7 +84,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -93,7 +94,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from src.common.naming import DEFAULT_MODEL_TAG, dataset_file, make_run_dir
 from src.common.paths import ROOT
-from src.common.style_detect import is_cot_complete, is_generation_complete
+from src.common.style_detect import extract_final_answer, is_cot_complete, is_generation_complete
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
 SYSTEM = '你是一个擅长中文数学应用题的助手，请尽量给出简洁且正确的答案。'
@@ -151,13 +152,6 @@ def parse_args() -> argparse.Namespace:
         help='Skip inference + metric recompute, just regenerate summary.md from an existing summary.json. Requires --existing-run-dir.',
     )
     return parser.parse_args()
-
-
-def extract_answer(text: str) -> str | None:
-    # 严格口径：必须出现 "答案：N。"（数字完整、句号收尾）才算抽到答案；
-    # 其它情况（截断、无标记、无句号）一律返回 None → 视为答错。
-    match = re.search(r'答案[：:]\s*([0-9]+(?:\.[0-9]+)?)\s*。', text)
-    return match.group(1) if match else None
 
 
 def build_engine(adapter: str | None, max_batch_size: int):
@@ -224,7 +218,7 @@ def compute_metrics(rows: list[dict]) -> dict:
         resp = row['response']
         cot_complete = is_cot_complete(resp)
         gen_complete = is_generation_complete(resp)
-        pred_answer = extract_answer(resp)
+        pred_answer = extract_final_answer(resp)
         answer_correct = pred_answer == row['gold_answer']
 
         counters['cot_complete'] += int(cot_complete)
@@ -322,9 +316,9 @@ def render_markdown_summary(summary: dict) -> str:
     lines.append('')
     lines.append('| 指标 | 衡量的是什么 |')
     lines.append('|---|---|')
-    lines.append('| 答案准确率 | 规则从输出里抽取出的数值是否等于标准答案 |')
+    lines.append('| 答案准确率 | 从输出末尾抽取出的阿拉伯数字是否等于标准答案 |')
     lines.append('| 推理过程完整率 | 输出里 `<think>…</think>` 标签是否成对出现（推理段没被截断） |')
-    lines.append('| 整体回答完整率 | 在前者基础上，还要出现「答案：N。」（数字+句号），即整段没被截 |')
+    lines.append('| 整体回答完整率 | 在前者基础上，整段以「N。」（数字+句号）收尾（「答案：」前缀可有可无），即整段没被截 |')
     lines.append('')
 
     # 整体表现
