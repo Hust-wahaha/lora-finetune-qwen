@@ -33,6 +33,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--save-steps', type=int, default=25)
     parser.add_argument('--eval-steps', type=int, default=25)
     parser.add_argument('--logging-steps', type=int, default=5)
+    # Windows 适配开关：默认 1 保持 AutoDL/Linux 行为不变；Windows 上必须传 0，
+    # 否则 multiprocessing 走 spawn 时会尝试 pickle model.enable_input_require_grads()
+    # 装的闭包 hook，抛
+    # `AttributeError: Can't get local object 'PreTrainedModel.enable_input_require_grads.<locals>.make_inputs_require_grads'`。
+    # Linux 走 fork 不复现。
+    parser.add_argument('--dataloader-num-workers', type=int, default=1)
     return parser.parse_args()
 
 
@@ -127,7 +133,7 @@ def main() -> None:
         num_train_epochs=args.num_train_epochs,
         save_total_limit=2,
         logging_steps=args.logging_steps,
-        dataloader_num_workers=1,
+        dataloader_num_workers=args.dataloader_num_workers,
         data_seed=42,
     )
 
