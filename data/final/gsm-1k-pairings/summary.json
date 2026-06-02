@@ -1,0 +1,73 @@
+{
+  "source_dir": "F:\\模式识别课设\\my_code\\lora-finetune-qwen\\data\\final\\gsm-1k",
+  "output_dir": "F:\\模式识别课设\\my_code\\lora-finetune-qwen\\data\\final\\gsm-1k-pairings",
+  "val_ratio": 0.1,
+  "seed": 42,
+  "source_counts": {
+    "train": 892,
+    "val": 99,
+    "test": 248
+  },
+  "pairings": {
+    "gsm1k_m2m": {
+      "input_view": "modern",
+      "cot_style": "modern",
+      "cot_field": "modern_think",
+      "counts": {
+        "train": 892,
+        "val": 99,
+        "test": 248
+      }
+    },
+    "gsm1k_m2c": {
+      "input_view": "modern",
+      "cot_style": "classical",
+      "cot_field": "classical_think",
+      "counts": {
+        "train": 892,
+        "val": 99,
+        "test": 248
+      }
+    },
+    "gsm1k_m2s": {
+      "input_view": "modern",
+      "cot_style": "structured",
+      "cot_field": "structured_think",
+      "counts": {
+        "train": 892,
+        "val": 99,
+        "test": 248
+      }
+    },
+    "gsm1k_c2m": {
+      "input_view": "classical",
+      "cot_style": "modern",
+      "cot_field": "modern_think",
+      "counts": {
+        "train": 892,
+        "val": 99,
+        "test": 248
+      }
+    },
+    "gsm1k_c2c": {
+      "input_view": "classical",
+      "cot_style": "classical",
+      "cot_field": "classical_think",
+      "counts": {
+        "train": 892,
+        "val": 99,
+        "test": 248
+      }
+    },
+    "gsm1k_c2s": {
+      "input_view": "classical",
+      "cot_style": "structured",
+      "cot_field": "structured_think",
+      "counts": {
+        "train": 892,
+        "val": 99,
+        "test": 248
+      }
+    }
+  }
+}
