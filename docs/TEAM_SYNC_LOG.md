@@ -377,3 +377,67 @@
 ### 建议下一步
 - 下一步可以把这轮文档与命名更新推到 GitHub
 - 后续模型轴扩展时，优先复用现有 `--model-id` / `--model-tag` 入口，不要再在脚本里手写新字符串
+
+## 颜艺晨 | 2026-05-20 23:49
+
+### 本次工作
+- 为 `eval_compare_full.py` 补充 module docstring，冻结评测协议说明
+- 新增 `requirements-windows.txt`，适配 Windows 本地开发环境
+- `train_lora_local.py` 加 `--dataloader-num-workers` 开关解决 Windows multiprocessing pickle 问题
+
+### 为什么这样做
+- 评测脚本文档缺失会导致后续接手者按错口径汇报
+- Windows 本地环境问题已踩坑，需要固化下来避免重踩
+
+### 修改/涉及文件
+- `scripts/eval_compare_full.py`
+- `scripts/train_lora_local.py`
+- `requirements-windows.txt`（新增）
+
+### 实验或运行信息
+- 机器：本地 Windows + RTX 4060 Laptop 8GB
+- 命令：无（文档与配置整理）
+- 输出目录：无
+
+### 结果与结论
+- `eval_compare_full.py` 的评测协议已有完整说明，后续直接看 docstring 即可
+- Windows 端依赖安装路径已固化到 `requirements-windows.txt`
+
+### 风险 / 遗留问题
+- 评测指标仍只有规则 + LLM 复核两种口径，缺乏 max_tokens 敏感性分析
+
+### 建议下一步
+- 新增专用的多模型 max_tokens 扫描评测脚本
+
+## 颜艺晨 | 2026-05-21 14:23
+
+### 本次工作
+- 新增 `scripts/eval_five_metrics.py`：三指标（初版五指标，后精简）+ max_tokens 扫描评测脚本
+- 新增 `src/common/style_detect.py`：指标判定纯函数集合，供评测脚本复用
+- 新增 `scripts/build_pairings.py`：从 `s800_think` 派生 6 组 (题面 × CoT 风格) 数据集（后重命名为 `build_gsm_pairings.py`）
+- 新增 `scripts/build_gsm_pairings.py`：从 `gsm-1k` 派生 6 组 (题面 × CoT 风格) 数据集
+
+### 为什么这样做
+- 主线只有 baseline/finetuned 的二元对照，无法观察模型在不同生成预算下的行为
+- CoT 完整性和输出控制能力的分析需要单独的工具，不能混进 `eval_compare_full.py`
+- 风格识别逻辑不应散落在 scripts/ 里，需要集中维护
+
+### 修改/涉及文件
+- `scripts/eval_five_metrics.py`（新增）
+- `src/common/style_detect.py`（新增）
+- `scripts/build_pairings.py`（新增）
+- `scripts/build_gsm_pairings.py`（新增）
+
+
+### 实验或运行信息
+- 机器：本地 Windows / AutoDL
+- 命令：`uv run python scripts/eval_five_metrics.py --model m2m:<ckpt> --include-baseline --max-tokens-list 32,64,128,256,512 --run-tag window_sweep`
+- 输出目录：`runs/{timestamp}_eval_{dataset_tag}_{model_tag}_{run_tag}/`
+
+### 结果与结论
+- 三指标已冻结：`answer_accuracy` / `cot_completeness_rate` / `generation_completion_rate`
+- 指标实现通过 `style_detect.py` 与 `eval_compare_full.py` 的 `extract_answer` 保持同口径
+- 可视化产物：2×3 折线网格（`metrics_sweep.pdf/png`），行=题面风格，列=三指标
+
+### 风险 / 遗留问题
+- 脚本名 `eval_five_metrics` 是历史命名（初版 5 指标后精简），后续介绍时需要解释
