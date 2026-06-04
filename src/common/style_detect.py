@@ -29,10 +29,22 @@ CLASSICAL_KEYWORDS: tuple[str, ...] = (
 
 _ENGLISH_RUN = re.compile(r'[A-Za-z]{4,}')
 _THINK_BLOCK = re.compile(r'<think>\s*(.*?)\s*</think>', re.DOTALL)
-# 与 scripts/eval_five_metrics.py:extract_answer 同口径：必须 "答案：N。"（数字+句号）
-# 才算整条生成完成。否则 "答案：很多。" / "答案：7个。" 这类没有提取出数值的输出会被
-# is_generation_complete 误判为已完成，与文档/markdown 释义脱节。
-_ANSWER_NUMERIC = re.compile(r'答案[：:]\s*[0-9]+(?:\.[0-9]+)?\s*。')
+# 答案抽取与「整体回答完整」判定共用同一正则，确保 is_generation_complete 与
+# extract_final_answer 永远同口径，杜绝以前那种「文档说严、实现说松」的协议-实现
+# 脱节。
+#
+# 两种合法收尾都接受：
+#   (1) 训练目标格式      `…</think>\n\n答案：78。`
+#   (2) 微调后实测精简格式 `…</think>\n\n78。`
+#
+# 关键约束：
+#   - 末端锚定 `\s*$`，所以只看「整段最后那个数字+句号」，
+#     <think> 内部出现的 "78美元。" / 中间式子 "= 78。" 都不会被误抽
+#   - 数字与句号之间只允许空白，因此 "78美元。" 会被正确拒绝
+#   - 句号兼容中文「。」与英文「.」，但保留小数点 ([0-9]+\.[0-9]+)
+_ANSWER_TAIL = re.compile(
+    r'(?:答案[：:]\s*)?([0-9]+(?:\.[0-9]+)?)\s*[。.]\s*$'
+)
 
 
 def extract_think_block(text: str | None) -> str | None:
@@ -50,11 +62,34 @@ def is_cot_complete(text: str | None) -> bool:
     return open_idx >= 0 and close_idx > open_idx
 
 
+def extract_final_answer(text: str | None) -> str | None:
+    """从模型整段输出末尾抽取数值答案。
+
+    扫描范围：
+      - 含 `<think>` 块时**只看 `</think>` 之后的尾部**——避免 think 体内的中间式子
+        （例如 `…即5×0.6=3美元。`）或截断在 think 中的 `=15。` 被误抽成答案
+      - 不含 `<think>` 块时（极少见，例如裸题面回答）扫描全文，保留兜底
+
+    返回纯数字串（如 "78" / "3.5"），抽不到返回 None。
+    """
+    if not text:
+        return None
+    if THINK_OPEN in text:
+        close_idx = text.find(THINK_CLOSE)
+        if close_idx < 0:
+            # think 已开但没闭合 = 被截断在推理中段，不算给出最终答案
+            return None
+        tail = text[close_idx + len(THINK_CLOSE):]
+    else:
+        tail = text
+    match = _ANSWER_TAIL.search(tail)
+    return match.group(1) if match else None
+
+
 def is_generation_complete(text: str | None) -> bool:
     if not is_cot_complete(text):
         return False
-    assert text is not None
-    return _ANSWER_NUMERIC.search(text) is not None
+    return extract_final_answer(text) is not None
 
 
 def _count_hits(text: str, keywords: tuple[str, ...]) -> int:
