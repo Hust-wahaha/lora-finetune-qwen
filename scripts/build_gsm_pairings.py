@@ -139,7 +139,7 @@ def split_train_val(rows: list[dict], val_ratio: float, seed: int) -> tuple[list
     rng = random.Random(seed)
     shuffled = list(rows)
     rng.shuffle(shuffled)
-    n_val = max(1, round(len(shuffled) * val_ratio))
+    n_val = round(len(shuffled) * val_ratio)
     return shuffled[n_val:], shuffled[:n_val]
 
 
