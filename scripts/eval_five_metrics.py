@@ -102,9 +102,46 @@ from src.common.paths import ROOT
 from src.common.style_detect import extract_final_answer, is_cot_complete, is_generation_complete
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
-SYSTEM = '你是一个擅长中文数学应用题的助手，请尽量给出简洁且正确的答案。'
+SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证，并将最终答案输出在字符\'答案：\'后面。'
 BASELINE_SPEC = 'baseline:none'
 _LEGACY_STYLE_SUFFIXES = {'modern', 'classical', 'none', 'unknown', 'mixed'}
+
+
+def _system_from_run_config(adapter: str | None) -> str:
+    """还原训练时 ms-swift 实际使用的 system prompt；找不到则返回默认值。
+
+    checkpoint 路径约定：.../runs/<run>/checkpoints/checkpoint-XX
+    run_config.json 在 checkpoints/ 的兄弟目录 metrics/ 里。
+
+    注意：run_config.json 的 `system` 字段记录的是 `--system` CLI 默认值（传给
+    get_template 的 default_system），但 ms-swift 在处理有显式 system 消息的记录时
+    会优先用数据里 messages[0] 的内容，default_system 不会被触发。
+    因此此函数优先从 train_dataset 的第一条记录读 messages[0]（训练时实际用的），
+    若读不到则回退到 run_config.json 的 system 字段，最后回退到默认 SYSTEM。
+    baseline（adapter=None）直接返回默认 SYSTEM。
+    """
+    if adapter is None:
+        return SYSTEM
+    run_config_path = Path(adapter).resolve().parent.parent / 'metrics' / 'run_config.json'
+    if run_config_path.is_file():
+        try:
+            cfg = json.loads(run_config_path.read_text(encoding='utf-8'))
+            train_dataset = cfg.get('train_dataset')
+            if train_dataset:
+                ds_path = Path(train_dataset)
+                if not ds_path.is_absolute():
+                    ds_path = ROOT / ds_path
+                if ds_path.is_file():
+                    first_line = ds_path.open(encoding='utf-8').readline().strip()
+                    if first_line:
+                        row = json.loads(first_line)
+                        msgs = row.get('messages', [])
+                        if msgs and msgs[0].get('role') == 'system':
+                            return msgs[0]['content']
+            return cfg.get('system', SYSTEM)
+        except Exception:
+            pass
+    return SYSTEM
 
 
 def parse_model_spec(raw: str) -> dict:
@@ -159,7 +196,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_engine(adapter: str | None, max_batch_size: int):
+def build_engine(adapter: str | None, max_batch_size: int, system: str = SYSTEM):
     from peft import PeftModel
     from swift import get_model_processor, get_template
     from swift.infer_engine import TransformersEngine
@@ -168,7 +205,7 @@ def build_engine(adapter: str | None, max_batch_size: int):
     if adapter:
         model = PeftModel.from_pretrained(model, adapter)
     template_type = model.model_meta.template
-    template = get_template(tokenizer, template_type=template_type, default_system=SYSTEM)
+    template = get_template(tokenizer, template_type=template_type, default_system=system)
     return TransformersEngine(model, template=template, max_batch_size=max_batch_size)
 
 
@@ -188,7 +225,7 @@ def run_inference(
 ) -> list[dict]:
     from swift.infer_engine import InferRequest, RequestConfig
     if engine is None:
-        engine = build_engine(adapter, args.max_batch_size)
+        engine = build_engine(adapter, args.max_batch_size, _system_from_run_config(adapter))
     requests = [InferRequest(messages=[{'role': 'user', 'content': row['messages'][1]['content']}]) for row in rows]
     request_config = RequestConfig(
         max_tokens=max_tokens,
@@ -613,7 +650,7 @@ def main() -> None:
                 pred_rows = load_existing(run_dir, name, mt)
             else:
                 if engine is None:
-                    engine = build_engine(adapter, args.max_batch_size)
+                    engine = build_engine(adapter, args.max_batch_size, _system_from_run_config(adapter))
                 pred_rows = run_inference(name, adapter, rows, mt, args, run_dir, engine=engine)
             results[name][str(mt)] = compute_metrics(pred_rows)
         engine = None  # free GPU before next model
