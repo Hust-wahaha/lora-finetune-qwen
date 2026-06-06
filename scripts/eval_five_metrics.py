@@ -67,17 +67,22 @@ run 目录由 `make_run_dir(stage='eval', ...)` 生成，路径形如
 - `metrics/summary.json`                    —— 主结果，结构为
   `results[model_name][str(max_tokens)] = {3 个一级指标 + by_view + detailed[]}`
 - `metrics/summary.md`                      —— 由 summary.json 渲染出的中文可读汇总
+- `metrics/metrics_sweep.pdf` / `.png`      —— 2×3 网格图（行=题面风格，列=指标），
+  每格 N 条线对比 N 个模型随 max_tokens 的变化；PDF 给论文/汇报用，PNG 快速预览
 
 控制台输出
 ==========
 
-只 print 一行 JSON headline 供日志抓取，**不打印指标对比表，也不出图**：
+只 print 一行 JSON headline 供日志抓取，**不打印指标对比表**（图直接落盘）：
 
     {"run_dir": "runs/...", "models": ["modern_lora", "baseline"],
      "max_tokens_list": [32, 64, 128, 256, 512],
-     "summary_md": "runs/.../metrics/summary.md"}
+     "summary_md": "runs/.../metrics/summary.md",
+     "summary_figures": ["runs/.../metrics/metrics_sweep.pdf",
+                         "runs/.../metrics/metrics_sweep.png"]}
 
-要看指标值或画图请读 `metrics/summary.json` 或 `metrics/summary.md`。
+要看指标值请读 `metrics/summary.json` 或 `metrics/summary.md`；要看趋势图直接打开
+`metrics/metrics_sweep.pdf`。
 """
 
 from __future__ import annotations
@@ -422,6 +427,175 @@ def write_markdown_summary(run_dir: Path, summary: dict) -> Path:
     return md_path
 
 
+# Wong 8 色色盲安全色板（去掉极浅的 #F0E442 黄色），最多支持 7 条模型曲线。
+# 参考 Wong, B. "Points of view: Color blindness." Nature Methods 8, 441 (2011).
+_FIGURE_PALETTE: tuple[str, ...] = (
+    '#000000',  # black
+    '#E69F00',  # orange
+    '#56B4E9',  # sky blue
+    '#009E73',  # bluish green
+    '#0072B2',  # deep blue
+    '#D55E00',  # vermillion
+    '#CC79A7',  # reddish purple
+)
+
+_FIGURE_METRIC_SPECS = (
+    ('answer_accuracy', '答案准确率\nAnswer accuracy (%)'),
+    ('cot_completeness_rate', '推理过程完整率\nCoT completeness (%)'),
+    ('generation_completion_rate', '整体回答完整率\nGeneration completion (%)'),
+)
+
+_FIGURE_VIEW_ZH = {
+    'modern': '白话题面 (modern view)',
+    'classical': '文言题面 (classical view)',
+}
+
+
+def _select_xaxis_scale(values: list[int]) -> str:
+    # max_tokens 列表可能是线性 (4,8,...,44) 也可能是几何 (32,64,128,256,512)。
+    # 跨度 >10 倍就切对数 (base 2)，让两端数据点都可读。
+    if len(values) < 2:
+        return 'linear'
+    return 'log' if (max(values) / max(min(values), 1)) > 10 else 'linear'
+
+
+def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
+    """Nature-leaning 2×3 折线网格：行=题面风格，列=指标，线=模型。
+
+    输出 `metrics/metrics_sweep.{pdf,png}`，PDF 矢量给汇报/论文用，PNG 600 DPI
+    给 IDE/markdown 预览用。模型数 ≤7 时色板足够区分；超过 7 个会循环用色。
+    """
+    import matplotlib
+
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as mticker
+
+    results = summary.get('results') or {}
+    model_specs = summary.get('models') or []
+    model_names = [m['name'] for m in model_specs] or list(results.keys())
+    max_tokens_list = summary.get('decode_max_tokens_list') or []
+    views = ['modern', 'classical']
+
+    if not model_names or not max_tokens_list:
+        return []
+
+    # rcParams 一次性套上：CJK 字体回退链 + 论文级排版。
+    plt.rcParams.update({
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Microsoft YaHei', 'SimHei', 'Arial', 'DejaVu Sans'],
+        'axes.unicode_minus': False,
+        'font.size': 8,
+        'axes.titlesize': 9,
+        'axes.labelsize': 8,
+        'xtick.labelsize': 7,
+        'ytick.labelsize': 7,
+        'legend.fontsize': 7,
+        'axes.spines.top': False,
+        'axes.spines.right': False,
+        'axes.linewidth': 0.7,
+        'xtick.major.width': 0.6,
+        'ytick.major.width': 0.6,
+        'xtick.direction': 'out',
+        'ytick.direction': 'out',
+        'lines.linewidth': 1.4,
+        'lines.markersize': 4.5,
+        'savefig.bbox': 'tight',
+        'savefig.pad_inches': 0.08,
+    })
+
+    x_scale = _select_xaxis_scale(max_tokens_list)
+    # x 轴稀疏化：>=10 个点时每隔一个标注，避免最右端文字重叠。
+    if len(max_tokens_list) >= 10:
+        x_ticks = max_tokens_list[::2]
+        if max_tokens_list[-1] not in x_ticks:
+            x_ticks = x_ticks + [max_tokens_list[-1]]
+    else:
+        x_ticks = list(max_tokens_list)
+
+    n_rows, n_cols = len(views), len(_FIGURE_METRIC_SPECS)
+    # 留出顶部 0.92 留给 suptitle + legend；不要 constrained_layout 强行抢空间。
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=(7.8, 5.0),
+        sharex='col',
+        sharey='row',
+    )
+    if n_rows == 1:
+        axes = [axes]
+
+    handles_for_legend: dict[str, plt.Line2D] = {}
+
+    for r, view in enumerate(views):
+        for c, (key, label) in enumerate(_FIGURE_METRIC_SPECS):
+            ax = axes[r][c]
+            for i, name in enumerate(model_names):
+                xs, ys = [], []
+                for mt in max_tokens_list:
+                    metric = (results.get(name) or {}).get(str(mt))
+                    if not metric:
+                        continue
+                    val = (metric.get('by_view', {}).get(view) or {}).get(key)
+                    if val is None:
+                        continue
+                    xs.append(mt)
+                    ys.append(val * 100.0)
+                if not xs:
+                    continue
+                color = _FIGURE_PALETTE[i % len(_FIGURE_PALETTE)]
+                line, = ax.plot(
+                    xs, ys,
+                    color=color, marker='o', markeredgewidth=0,
+                    label=name,
+                )
+                handles_for_legend.setdefault(name, line)
+            ax.set_ylim(-4, 104)
+            ax.set_yticks([0, 25, 50, 75, 100])
+            ax.grid(True, axis='y', linewidth=0.4, alpha=0.35)
+            ax.set_xscale(x_scale)
+            ax.set_xticks(x_ticks)
+            if x_scale == 'log':
+                ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
+                ax.minorticks_off()
+            if r == 0:
+                ax.set_title(label, pad=6)
+            if r == n_rows - 1:
+                ax.set_xlabel('生成长度上限 Max tokens')
+            if c == 0:
+                ax.set_ylabel(_FIGURE_VIEW_ZH[view])
+
+    # 单图例放在 axes 上方、suptitle 下方；按 CLI 声明顺序保留模型顺序。
+    ordered_handles = [handles_for_legend[n] for n in model_names if n in handles_for_legend]
+    ordered_labels = [n for n in model_names if n in handles_for_legend]
+    if ordered_handles:
+        fig.legend(
+            ordered_handles, ordered_labels,
+            loc='upper center',
+            bbox_to_anchor=(0.5, 0.945),
+            ncol=min(7, len(ordered_handles)),
+            frameon=False,
+            columnspacing=1.6,
+            handlelength=1.8,
+        )
+
+    fig.suptitle(
+        f'指标随 max_tokens 的变化（数据集 {summary.get("dataset_tag", "?")}）',
+        fontsize=10, y=0.99,
+    )
+    # 顶部空出 legend (~y=0.945) + suptitle (~y=0.99) + 列标题；子图顶到 0.80。
+    fig.subplots_adjust(top=0.80, bottom=0.10, left=0.09, right=0.985,
+                        wspace=0.12, hspace=0.22)
+
+    out_dir = run_dir / 'metrics'
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = out_dir / 'metrics_sweep.pdf'
+    png_path = out_dir / 'metrics_sweep.png'
+    fig.savefig(pdf_path)
+    fig.savefig(png_path, dpi=600)
+    plt.close(fig)
+    return [pdf_path, png_path]
+
+
 def main() -> None:
     args = parse_args()
     root = args.root.resolve()
@@ -439,7 +613,11 @@ def main() -> None:
             )
         summary = json.loads(summary_path.read_text(encoding='utf-8'))
         md_path = write_markdown_summary(run_dir, summary)
-        print(json.dumps({'rendered_markdown': str(md_path)}, ensure_ascii=False))
+        fig_paths = render_summary_figures(summary, run_dir)
+        print(json.dumps({
+            'rendered_markdown': str(md_path),
+            'summary_figures': [str(p) for p in fig_paths],
+        }, ensure_ascii=False))
         return
 
     max_tokens_list = parse_max_tokens_list(args.max_tokens_list)
@@ -490,12 +668,14 @@ def main() -> None:
     summary_path = run_dir / 'metrics' / 'summary.json'
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
     md_path = write_markdown_summary(run_dir, summary)
+    fig_paths = render_summary_figures(summary, run_dir)
 
     headline = {
         'run_dir': summary['run_dir'],
         'models': [m['name'] for m in model_specs],
         'max_tokens_list': max_tokens_list,
         'summary_md': str(md_path),
+        'summary_figures': [str(p) for p in fig_paths],
     }
     print(json.dumps(headline, ensure_ascii=False))
 
