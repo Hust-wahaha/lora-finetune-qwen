@@ -103,18 +103,37 @@ _LEGACY_STYLE_SUFFIXES = {'modern', 'classical', 'none', 'unknown', 'mixed'}
 
 
 def _system_from_run_config(adapter: str | None) -> str:
-    """从训练 run 的 run_config.json 读取 system prompt；找不到则返回默认值。
+    """还原训练时 ms-swift 实际使用的 system prompt；找不到则返回默认值。
 
     checkpoint 路径约定：.../runs/<run>/checkpoints/checkpoint-XX
-    run_config.json 在 checkpoints/ 的兄弟目录 metrics/ 里，训练脚本保证写入 system 字段。
-    baseline（adapter=None）或路径不符合约定时，静默回退到默认 SYSTEM。
+    run_config.json 在 checkpoints/ 的兄弟目录 metrics/ 里。
+
+    注意：run_config.json 的 `system` 字段记录的是 `--system` CLI 默认值（传给
+    get_template 的 default_system），但 ms-swift 在处理有显式 system 消息的记录时
+    会优先用数据里 messages[0] 的内容，default_system 不会被触发。
+    因此此函数优先从 train_dataset 的第一条记录读 messages[0]（训练时实际用的），
+    若读不到则回退到 run_config.json 的 system 字段，最后回退到默认 SYSTEM。
+    baseline（adapter=None）直接返回默认 SYSTEM。
     """
     if adapter is None:
         return SYSTEM
-    run_config = Path(adapter).resolve().parent.parent / 'metrics' / 'run_config.json'
-    if run_config.is_file():
+    run_config_path = Path(adapter).resolve().parent.parent / 'metrics' / 'run_config.json'
+    if run_config_path.is_file():
         try:
-            return json.loads(run_config.read_text(encoding='utf-8')).get('system', SYSTEM)
+            cfg = json.loads(run_config_path.read_text(encoding='utf-8'))
+            train_dataset = cfg.get('train_dataset')
+            if train_dataset:
+                ds_path = Path(train_dataset)
+                if not ds_path.is_absolute():
+                    ds_path = ROOT / ds_path
+                if ds_path.is_file():
+                    first_line = ds_path.open(encoding='utf-8').readline().strip()
+                    if first_line:
+                        row = json.loads(first_line)
+                        msgs = row.get('messages', [])
+                        if msgs and msgs[0].get('role') == 'system':
+                            return msgs[0]['content']
+            return cfg.get('system', SYSTEM)
         except Exception:
             pass
     return SYSTEM
