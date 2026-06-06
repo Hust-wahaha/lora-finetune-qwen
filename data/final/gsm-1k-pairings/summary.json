@@ -74,10 +74,8 @@
         "m2m",
         "c2c"
       ],
-      "description": "concat of m2m + c2c",
+      "description": "test-only concat of m2m + c2c",
       "counts": {
-        "train": 1784,
-        "val": 198,
         "test": 496
       }
     }

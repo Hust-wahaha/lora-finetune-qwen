@@ -12,12 +12,12 @@
 | c2m   | classical_question | modern_think       |
 | c2c   | classical_question | classical_think    |
 | c2s   | classical_question | structured_think   |
-| mixed | m2m + c2c 各半    | 对应 CoT           |
+| mixed | m2m + c2c 各半    | 对应 CoT（仅 test） |
 
 输出目录：data/final/gsm-1k-pairings/{train,val,test}_gsm1k_{tag}.jsonl + summary.json
 规模（train 991 条 → 切 10% = 99 条 val，892 条 train；test 固定 248 条）：
-  6 个基础 tag：~892 / ~99 / 248 条各一份
-  mixed：~1784 / ~198 / 496 条（m2m + c2c 各一份拼接）
+  6 个基础 tag：~892 / ~99 / 248 条各一份（train/val/test 均生成）
+  mixed：496 条（仅 test，m2m 248 + c2c 248，为评测提供白话和文言双题面）
 
 约定（与 src/common/schema.py 对齐）：
 - 保留源文件的所有原始字段，保证 validate_dataset.py 的 CORE + TRAINING 字段齐全。
@@ -203,20 +203,16 @@ def main() -> None:
             'counts':     {sp: len(per_tag_derived[tag][sp]) for sp in split_data},
         }
 
-    # mixed：MIXED_SOURCE_TAGS 中各 tag 的派生记录按 split 拼接
-    mixed_counts: dict[str, int] = {}
-    for split in split_data:
-        mixed_rows = []
-        for src_tag in MIXED_SOURCE_TAGS:
-            mixed_rows.extend(per_tag_derived[src_tag][split])
-        out_path = out_dir / f'{split}_gsm1k_mixed.jsonl'
-        write_jsonl(out_path, mixed_rows)
-        mixed_counts[split] = len(mixed_rows)
+    # mixed（仅 test）：为评测提供白话和文言双题面，train/val 无需混合
+    mixed_test_rows = []
+    for src_tag in MIXED_SOURCE_TAGS:
+        mixed_test_rows.extend(per_tag_derived[src_tag]['test'])
+    write_jsonl(out_dir / 'test_gsm1k_mixed.jsonl', mixed_test_rows)
 
     summary['pairings']['gsm1k_mixed'] = {
         'source_tags': list(MIXED_SOURCE_TAGS),
-        'description': 'concat of ' + ' + '.join(MIXED_SOURCE_TAGS),
-        'counts': mixed_counts,
+        'description': 'test-only concat of ' + ' + '.join(MIXED_SOURCE_TAGS),
+        'counts': {'test': len(mixed_test_rows)},
     }
 
     summary_path = out_dir / 'summary.json'
