@@ -102,7 +102,7 @@ from src.common.paths import ROOT
 from src.common.style_detect import extract_final_answer, is_cot_complete, is_generation_complete
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
-SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证，并将最终答案输出在字符\'答案：\'后面。'
+SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证，并将最终答案输出在字符\'答案：\'后面'
 BASELINE_SPEC = 'baseline:none'
 _LEGACY_STYLE_SUFFIXES = {'modern', 'classical', 'none', 'unknown', 'mixed'}
 
@@ -142,6 +142,20 @@ def _system_from_run_config(adapter: str | None) -> str:
         except Exception:
             pass
     return SYSTEM
+
+
+def enable_thinking_for(adapter: str | None) -> bool:
+    """baseline（无 LoRA adapter）关 thinking，否则保持开启。
+
+    背景：Qwen3.5 原始模型在 thinking 模式下对中文数学题非常容易陷入死循环
+    （反复内省、自我怀疑、重新展开同一推理路径），消耗 max_tokens 却不收敛；
+    关掉 thinking 后改用「答案：」风格的直接回答模板，反而更稳定。微调过的
+    LoRA checkpoint 已经被训练成「在 <think> 块内紧凑产出」，保持 True。
+
+    `parse_model_spec` 已把 'none'/'' 规约成 `None`，这里用 `bool(adapter)`
+    双重保险：None 与空串都视为 baseline，落到 False。
+    """
+    return bool(adapter)
 
 
 def parse_model_spec(raw: str) -> dict:
@@ -196,7 +210,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_engine(adapter: str | None, max_batch_size: int, system: str = SYSTEM):
+def build_engine(
+    adapter: str | None,
+    max_batch_size: int,
+    system: str = SYSTEM,
+    enable_thinking: bool = True,
+):
     from peft import PeftModel
     from swift import get_model_processor, get_template
     from swift.infer_engine import TransformersEngine
@@ -205,7 +224,12 @@ def build_engine(adapter: str | None, max_batch_size: int, system: str = SYSTEM)
     if adapter:
         model = PeftModel.from_pretrained(model, adapter)
     template_type = model.model_meta.template
-    template = get_template(tokenizer, template_type=template_type, default_system=system)
+    template = get_template(
+        tokenizer,
+        template_type=template_type,
+        default_system=system,
+        enable_thinking=enable_thinking,
+    )
     return TransformersEngine(model, template=template, max_batch_size=max_batch_size)
 
 
@@ -225,7 +249,10 @@ def run_inference(
 ) -> list[dict]:
     from swift.infer_engine import InferRequest, RequestConfig
     if engine is None:
-        engine = build_engine(adapter, args.max_batch_size, _system_from_run_config(adapter))
+        engine = build_engine(
+            adapter, args.max_batch_size, _system_from_run_config(adapter),
+            enable_thinking=enable_thinking_for(adapter),
+        )
     requests = [InferRequest(messages=[{'role': 'user', 'content': row['messages'][1]['content']}]) for row in rows]
     request_config = RequestConfig(
         max_tokens=max_tokens,
@@ -358,9 +385,15 @@ def render_markdown_summary(summary: dict) -> str:
     lines.append('')
     lines.append('| 指标 | 衡量的是什么 |')
     lines.append('|---|---|')
-    lines.append('| 答案准确率 | 从输出末尾抽取出的阿拉伯数字是否等于标准答案 |')
+    lines.append('| 答案准确率 | 从输出末尾抽取出的阿拉伯数字是否等于标准答案。优先识别「答案：N」（句号可省），其次识别裸 `N。`（句号必备） |')
     lines.append('| 推理过程完整率 | 输出里 `<think>…</think>` 标签是否成对出现（推理段没被截断） |')
-    lines.append('| 整体回答完整率 | 在前者基础上，整段以「N。」（数字+句号）收尾（「答案：」前缀可有可无），即整段没被截 |')
+    lines.append('| 整体回答完整率 | 在前者基础上，整段以「答案：N」或裸「N。」收尾，即整段没被截 |')
+    lines.append('')
+    lines.append('> **关于 baseline 的特别说明**：baseline 评测时关闭了 thinking 模式（避免原始 Qwen3.5')
+    lines.append('> 在中文数学题上陷入死循环），其输出始终是 `<think>\\n\\n</think>\\n\\n…答案：N` 结构，')
+    lines.append('> 即 `<think>` 块为空但 tag 已对——因此 baseline 的「**推理过程完整率**」恒为 100%，')
+    lines.append('> 只反映 tag 是否成对，不反映其推理质量；要看 baseline 的真实能力请直接看「答案准确率」')
+    lines.append('> 与「整体回答完整率」。')
     lines.append('')
 
     # 整体表现
@@ -582,8 +615,22 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
         f'指标随 max_tokens 的变化（数据集 {summary.get("dataset_tag", "?")}）',
         fontsize=10, y=0.99,
     )
+    # baseline 关 thinking 后输出 `<think>\n\n</think>\n\n…`，CoT 完整率恒为 100%
+    # 但不反映推理质量；图例里有 baseline 时在底部加一行小字脚注，避免读者误读。
+    has_baseline = any(n.lower() == 'baseline' for n in ordered_labels)
+    if has_baseline:
+        fig.text(
+            0.5, 0.02,
+            '注：baseline 关闭 thinking，`<think>` 块为空但 tag 已对，'
+            '其「推理过程完整率」恒为 100%，仅反映标签存在性，不反映推理质量。',
+            ha='center', va='bottom', fontsize=6.5, style='italic', color='#444444',
+        )
+        bottom_margin = 0.13
+    else:
+        bottom_margin = 0.10
+
     # 顶部空出 legend (~y=0.945) + suptitle (~y=0.99) + 列标题；子图顶到 0.80。
-    fig.subplots_adjust(top=0.80, bottom=0.10, left=0.09, right=0.985,
+    fig.subplots_adjust(top=0.80, bottom=bottom_margin, left=0.09, right=0.985,
                         wspace=0.12, hspace=0.22)
 
     out_dir = run_dir / 'metrics'
@@ -650,7 +697,10 @@ def main() -> None:
                 pred_rows = load_existing(run_dir, name, mt)
             else:
                 if engine is None:
-                    engine = build_engine(adapter, args.max_batch_size, _system_from_run_config(adapter))
+                    engine = build_engine(
+                        adapter, args.max_batch_size, _system_from_run_config(adapter),
+                        enable_thinking=enable_thinking_for(adapter),
+                    )
                 pred_rows = run_inference(name, adapter, rows, mt, args, run_dir, engine=engine)
             results[name][str(mt)] = compute_metrics(pred_rows)
         engine = None  # free GPU before next model
