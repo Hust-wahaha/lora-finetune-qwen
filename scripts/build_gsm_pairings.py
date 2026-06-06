@@ -1,21 +1,23 @@
 """
 从 data/final/gsm-1k/{train,test}/modern.jsonl 派生 6 种 (输入题面 × CoT 风格) 组合，
-并从 train 中切 10% 作为验证集。
+并从 train 中切 10% 作为验证集。额外生成 mixed tag（m2m + c2c 合并）。
 
-6 个 tag = 输入(2) × CoT(3)：
+7 个 tag = 输入(2) × CoT(3) + 1 个混合：
 
-| tag | user 输入字段       | assistant CoT 字段 |
-| --- | ------------------ | ------------------ |
-| m2m | modern_question    | modern_think       |
-| m2c | modern_question    | classical_think    |
-| m2s | modern_question    | structured_think   |
-| c2m | classical_question | modern_think       |
-| c2c | classical_question | classical_think    |
-| c2s | classical_question | structured_think   |
+| tag   | user 输入字段       | assistant CoT 字段 |
+| ----- | ------------------ | ------------------ |
+| m2m   | modern_question    | modern_think       |
+| m2c   | modern_question    | classical_think    |
+| m2s   | modern_question    | structured_think   |
+| c2m   | classical_question | modern_think       |
+| c2c   | classical_question | classical_think    |
+| c2s   | classical_question | structured_think   |
+| mixed | m2m + c2c 各半    | 对应 CoT           |
 
 输出目录：data/final/gsm-1k-pairings/{train,val,test}_gsm1k_{tag}.jsonl + summary.json
 规模（train 991 条 → 切 10% = 99 条 val，892 条 train；test 固定 248 条）：
-  train: ~892 × 6 = 5352 条，val: ~99 × 6 = 594 条，test: 248 × 6 = 1488 条
+  6 个基础 tag：~892 / ~99 / 248 条各一份
+  mixed：~1784 / ~198 / 496 条（m2m + c2c 各一份拼接）
 
 约定（与 src/common/schema.py 对齐）：
 - 保留源文件的所有原始字段，保证 validate_dataset.py 的 CORE + TRAINING 字段齐全。
@@ -62,6 +64,8 @@ PAIRINGS = [
     {'tag': 'c2c', 'input_view': 'classical', 'cot_style': 'classical',  'cot_field': 'classical_think'},
     {'tag': 'c2s', 'input_view': 'classical', 'cot_style': 'structured', 'cot_field': 'structured_think'},
 ]
+# mixed = m2m（白话输入×白话CoT）+ c2c（文言输入×文言CoT）各一份拼接，覆盖两种语言风格
+MIXED_SOURCE_TAGS = ('m2m', 'c2c')
 
 REQUIRED_SOURCE_FIELDS = (
     'base_id', 'source', 'family', 'answer',
@@ -139,6 +143,14 @@ def split_train_val(rows: list[dict], val_ratio: float, seed: int) -> tuple[list
     return shuffled[n_val:], shuffled[:n_val]
 
 
+def _relpath(path: Path) -> str:
+    """返回相对于项目根目录的路径字符串（正斜杠），无法相对化时返回原字符串。"""
+    try:
+        return str(path.relative_to(ROOT_DIR)).replace('\\', '/')
+    except ValueError:
+        return str(path)
+
+
 def main() -> None:
     args = parse_args()
     out_dir = args.output_dir.resolve()
@@ -163,23 +175,24 @@ def main() -> None:
     }
 
     summary: dict = {
-        'source_dir': str(source_dir),
-        'output_dir': str(out_dir),
+        'source_dir': _relpath(source_dir),
+        'output_dir': _relpath(out_dir),
         'val_ratio': args.val_ratio,
         'seed': args.seed,
         'source_counts': {s: len(r) for s, r in split_data.items()},
         'pairings': {},
     }
 
-    per_tag_counts: dict[str, dict] = {p['tag']: {} for p in PAIRINGS}
-
+    # 6 个基础 pairing，同时收集 mixed 需要的两组派生记录
+    per_tag_derived: dict[str, dict[str, list[dict]]] = {}
     for pairing in PAIRINGS:
         tag = pairing['tag']
+        per_tag_derived[tag] = {}
         for split, rows in split_data.items():
             derived = [derive_record(r, pairing, split) for r in rows]
             out_path = out_dir / f'{split}_gsm1k_{tag}.jsonl'
             write_jsonl(out_path, derived)
-            per_tag_counts[tag][split] = len(derived)
+            per_tag_derived[tag][split] = derived
 
     for pairing in PAIRINGS:
         tag = pairing['tag']
@@ -187,8 +200,24 @@ def main() -> None:
             'input_view': pairing['input_view'],
             'cot_style':  pairing['cot_style'],
             'cot_field':  pairing['cot_field'],
-            'counts':     per_tag_counts[tag],
+            'counts':     {sp: len(per_tag_derived[tag][sp]) for sp in split_data},
         }
+
+    # mixed：MIXED_SOURCE_TAGS 中各 tag 的派生记录按 split 拼接
+    mixed_counts: dict[str, int] = {}
+    for split in split_data:
+        mixed_rows = []
+        for src_tag in MIXED_SOURCE_TAGS:
+            mixed_rows.extend(per_tag_derived[src_tag][split])
+        out_path = out_dir / f'{split}_gsm1k_mixed.jsonl'
+        write_jsonl(out_path, mixed_rows)
+        mixed_counts[split] = len(mixed_rows)
+
+    summary['pairings']['gsm1k_mixed'] = {
+        'source_tags': list(MIXED_SOURCE_TAGS),
+        'description': 'concat of ' + ' + '.join(MIXED_SOURCE_TAGS),
+        'counts': mixed_counts,
+    }
 
     summary_path = out_dir / 'summary.json'
     summary_path.parent.mkdir(parents=True, exist_ok=True)

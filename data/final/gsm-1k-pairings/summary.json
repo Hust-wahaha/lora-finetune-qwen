@@ -1,6 +1,6 @@
 {
-  "source_dir": "F:\\模式识别课设\\my_code\\lora-finetune-qwen\\data\\final\\gsm-1k",
-  "output_dir": "F:\\模式识别课设\\my_code\\lora-finetune-qwen\\data\\final\\gsm-1k-pairings",
+  "source_dir": "data/final/gsm-1k",
+  "output_dir": "data/final/gsm-1k-pairings",
   "val_ratio": 0.1,
   "seed": 42,
   "source_counts": {
@@ -67,6 +67,18 @@
         "train": 892,
         "val": 99,
         "test": 248
+      }
+    },
+    "gsm1k_mixed": {
+      "source_tags": [
+        "m2m",
+        "c2c"
+      ],
+      "description": "concat of m2m + c2c",
+      "counts": {
+        "train": 1784,
+        "val": 198,
+        "test": 496
       }
     }
   }
