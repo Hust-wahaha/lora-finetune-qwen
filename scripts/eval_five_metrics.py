@@ -84,7 +84,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -99,20 +98,26 @@ from src.common.style_detect import extract_final_answer, is_cot_complete, is_ge
 
 MODEL_ID = 'Qwen/Qwen3.5-0.8B'
 SYSTEM = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证，并将最终答案输出在字符\'答案：\'后面。'
-_SYSTEM_BASE = '你是一个擅长中文数学应用题的助手，要求输出简洁、准确、可验证。'
-SYSTEM_BY_COT_STYLE: dict[str, str] = {
-    'm': _SYSTEM_BASE + "请用白话文进行思考，并将最终答案输出在字符'答案：'后面",
-    's': _SYSTEM_BASE + "请用结构化方式进行思考，并将最终答案输出在字符'答案：'后面",
-    'c': _SYSTEM_BASE + "请用文言文进行思考，并将最终答案输出在字符'答案：'后面",
-}
 BASELINE_SPEC = 'baseline:none'
 _LEGACY_STYLE_SUFFIXES = {'modern', 'classical', 'none', 'unknown', 'mixed'}
 
 
-def system_for_model(name: str) -> str:
-    # 从模型名（如 m2m、c2s、baseline）提取输出风格字符（2 后面的 m/s/c）
-    m = re.search(r'2([msc])(?:$|[^a-z])', name.lower())
-    return SYSTEM_BY_COT_STYLE[m.group(1)] if m else SYSTEM
+def _system_from_run_config(adapter: str | None) -> str:
+    """从训练 run 的 run_config.json 读取 system prompt；找不到则返回默认值。
+
+    checkpoint 路径约定：.../runs/<run>/checkpoints/checkpoint-XX
+    run_config.json 在 checkpoints/ 的兄弟目录 metrics/ 里，训练脚本保证写入 system 字段。
+    baseline（adapter=None）或路径不符合约定时，静默回退到默认 SYSTEM。
+    """
+    if adapter is None:
+        return SYSTEM
+    run_config = Path(adapter).resolve().parent.parent / 'metrics' / 'run_config.json'
+    if run_config.is_file():
+        try:
+            return json.loads(run_config.read_text(encoding='utf-8')).get('system', SYSTEM)
+        except Exception:
+            pass
+    return SYSTEM
 
 
 def parse_model_spec(raw: str) -> dict:
@@ -196,7 +201,7 @@ def run_inference(
 ) -> list[dict]:
     from swift.infer_engine import InferRequest, RequestConfig
     if engine is None:
-        engine = build_engine(adapter, args.max_batch_size, system_for_model(name))
+        engine = build_engine(adapter, args.max_batch_size, _system_from_run_config(adapter))
     requests = [InferRequest(messages=[{'role': 'user', 'content': row['messages'][1]['content']}]) for row in rows]
     request_config = RequestConfig(
         max_tokens=max_tokens,
@@ -448,7 +453,7 @@ def main() -> None:
                 pred_rows = load_existing(run_dir, name, mt)
             else:
                 if engine is None:
-                    engine = build_engine(adapter, args.max_batch_size, system_for_model(name))
+                    engine = build_engine(adapter, args.max_batch_size, _system_from_run_config(adapter))
                 pred_rows = run_inference(name, adapter, rows, mt, args, run_dir, engine=engine)
             results[name][str(mt)] = compute_metrics(pred_rows)
         engine = None  # free GPU before next model
