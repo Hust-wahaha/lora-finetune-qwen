@@ -404,5 +404,32 @@
 ### 结论
 
 - `reference_v1` 不只是提升了最终答案稳定性，也把 `<think>` 内部内容从英文长推理改成了受监督的中文思维输出
-- 这说明当前数据与训练方式确实实现了“显式监督 think 内容”的目标
+- 这说明当前数据与训练方式确实实现了”显式监督 think 内容”的目标
 - 同时也说明 baseline 的 `55%` 只是规则抽取口径偏低，经过 LLM 复核后其真实正确率同样可以回到 `100%`
+
+## 2026-05-20 评测体系初建（颜艺晨）
+
+- 新增 Windows 本地开发支持（`requirements-windows.txt`），固化 torch+cu128 / torchvision / qwen-vl-utils 依赖
+- `train_lora_local.py` 加入 `--dataloader-num-workers` 开关，解决 Windows multiprocessing spawn pickle 问题
+
+## 2026-05-21 五指标评测体系与数据集配对（颜艺晨）
+
+- 新增 `scripts/eval_five_metrics.py`：三指标（初版五指标，后精简）+ max_tokens 扫描评测脚本
+  - 指标 1：`cot_completeness_rate`（`<think>…</think>` 是否闭合）
+  - 指标 2：`generation_completion_rate`（整段以「N。」收尾）
+  - 指标 3：`answer_accuracy`（末尾数值与 gold 精确匹配）
+- 新增 `src/common/style_detect.py`：风格识别与生成完整性判定的纯函数集合，供评测脚本复用
+- 新增 `scripts/build_pairings.py`：从 `s800_think` 派生 6 组 (题面 × CoT 风格) 数据集
+- 新增 `scripts/build_gsm_pairings.py`：从 `gsm-1k` 派生 6 组 (题面 × CoT 风格) 数据集
+
+### 后续迭代
+
+- PR #4：新增 `--render-only` 模式，可基于已有 `summary.json` 重渲染 markdown
+- PR #5：指标精简（去掉推理质量打分与 think 忠实度），同时收紧 `extract_final_answer` 正则——只看 `</think>` 之后的尾部，避免推理中间式子被误抽
+- 后续：新增 2×3 折线网格可视化（`metrics_sweep.pdf/png`）；system prompt 按模型名后缀（2m/2s/2c）自动匹配；调整口径使脚本更泛化
+
+### 当前评测体系状态
+
+- `eval_compare_full.py`：**保持冻结**，负责 baseline/finetuned 二元对照与 DeepSeek 复核
+- `eval_five_metrics.py`：**主动扩展入口**，负责 max_tokens 敏感性分析与多模型横向比较
+- GSM-1K 配对数据：`data/final/gsm-1k-pairings/` + `scripts/build_gsm_pairings.py`，进行了6组微调和baseline评测实验

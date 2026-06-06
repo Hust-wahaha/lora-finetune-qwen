@@ -120,29 +120,40 @@
 
 ### 任务目标
 
-把当前评测脚本整理成统一 Benchmark 协议，并在新数据到位后负责标准评测。
+构建统一 Benchmark 协议，并在新数据到位后负责标准评测。
 
 ### 具体交付物
 
-- 一份冻结的 Benchmark 协议说明
-- 一套统一评测命令模板
-- 新数据到位后的正式评测结果
+- ✅ `scripts/eval_five_metrics.py` — 三指标 + max_tokens 扫描评测脚本（已完成）
+- ✅ `src/common/style_detect.py` — 指标判定纯函数集合（已完成）
+- ✅ 2×3 折线网格可视化图（`metrics/metrics_sweep.pdf/png`）（已完成）
+- 待执行：新数据（gsm-1k 等）到位后的正式评测结果
+
+### 当前冻结的三指标
+
+| 指标名 | 衡量内容 |
+|---|---|
+| `answer_accuracy` | 从输出末尾抽取阿拉伯数字，与 gold 字符串做精确匹配 |
+| `cot_completeness_rate` | `<think>…</think>` 标签是否成对出现（推理段未被截断） |
+| `generation_completion_rate` | 在前者基础上，整段以「N。」（数字+句号）收尾，整条没被截 |
+
+> 注：脚本名 `eval_five_metrics` 是历史命名，初版为 5 指标，后精简为当前 3 个；指标实现统一在 `src/common/style_detect.py`，不在脚本内重复定义正则。
 
 ### 必须遵守
 
-- 当前 `eval_compare_full.py` 是基线，不要直接推翻
-- 先保证可比性，再加新指标
-- 新指标应尽量以“新增脚本或新增开关”的方式接入
+- `eval_compare_full.py` 是基线，不要直接推翻；二者并行：前者负责 baseline/finetuned 对照与 DeepSeek 复核，后者负责 max_tokens 扫描与完整性分析
+- 新指标以”新增开关”方式接入（`style_detect.py` 中的 `style_label` / `english_leak_count` 等函数已备用）
+- 不在 `scripts/` 里重复定义正则或判定逻辑，统一走 `src/common/style_detect.py`
 
 ### 与代码的衔接要求
 
-当前仓库已有的稳定评测资产包括：
+当前仓库已有的稳定评测资产：
 
-- 规则答案抽取
-- `DeepSeek` 复核
-- baseline / finetuned 对照
+- `eval_compare_full.py`：规则答案抽取 + DeepSeek 复核 + baseline/finetuned 对照
+- `eval_five_metrics.py`：三指标 × max_tokens × 多模型 扫描 + PDF/PNG 可视化
+- `src/common/style_detect.py`：`is_cot_complete` / `is_generation_complete` / `extract_final_answer` / `style_label` / `english_leak_count`
 
-你的扩展应建立在这些资产之上，而不是重写一套新口径。
+后续如需加”思维风格命中率”或”英文漏出率”统计，直接调用 `style_detect.py` 的现有函数即可，无需重写。
 
 ## 刘佳为
 

@@ -34,6 +34,7 @@
   - `validate_dataset.py`
   - `train_lora_local.py`
   - `eval_compare_full.py`
+  - `eval_five_metrics.py`
   - `inspect_think_samples.py`
 
 ### `runs/`
@@ -192,6 +193,37 @@ python scripts/eval_compare_full.py --dataset-tag s800_think --checkpoint <check
 - 生成 baseline / finetuned prediction
 - 生成 `compare_summary.json`
 - 可选接 `DeepSeek V4 Flash` 复核
+
+### max_tokens 扫描评测
+
+```bash
+# AutoDL：多模型 + baseline，扫描多档 max_tokens
+uv run python scripts/eval_five_metrics.py \
+    --model m2m:runs/<run>/checkpoints/checkpoint-XX \
+    --model c2m:runs/<run>/checkpoints/checkpoint-YY \
+    --include-baseline \
+    --max-tokens-list 32,64,128,256,512 \
+    --run-tag window_sweep
+
+# 只重渲染 markdown（不重跑推理，基于已有 summary.json）
+uv run python scripts/eval_five_metrics.py \
+    --render-only --existing-run-dir runs/<eval_run>
+```
+
+产物：
+
+- `predictions/{name}_mt{max_tokens}.json`（原始输出，N 模型 × M 窗口个文件）
+- `metrics/summary.json`（主结果，含三指标 + by_view 分桶）
+- `metrics/summary.md`（中文可读汇总）
+- `metrics/metrics_sweep.pdf` / `.png`（2×3 折线图：行=题面风格，列=三指标）
+
+三个指标：
+
+| 指标名 | 含义 |
+|---|---|
+| `answer_accuracy` | 从输出末尾抽取阿拉伯数字是否等于标准答案 |
+| `cot_completeness_rate` | `<think>…</think>` 标签是否成对出现（推理未被截断） |
+| `generation_completion_rate` | 在前者基础上，整段以「N。」（数字+句号）收尾 |
 
 ### 抽样检查
 
