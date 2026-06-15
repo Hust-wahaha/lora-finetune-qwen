@@ -537,10 +537,13 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
     results = summary.get('results') or {}
     model_specs = summary.get('models') or []
     model_names = [m['name'] for m in model_specs] or list(results.keys())
+    # 图中不显示 baseline：其 CoT 完整率因关 thinking 而恒为 100% 会误导读者，
+    # 且 baseline 数值已在 summary.md 的文字里单独说明。
+    plot_model_names = [n for n in model_names if n.lower() != 'baseline']
     max_tokens_list = summary.get('decode_max_tokens_list') or []
     views = ['modern', 'classical']
 
-    if not model_names or not max_tokens_list:
+    if not plot_model_names or not max_tokens_list:
         return []
 
     # rcParams 一次性套上：CJK 字体回退链 + 论文级排版。
@@ -592,7 +595,7 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
     for r, view in enumerate(views):
         for c, (key, label) in enumerate(_FIGURE_METRIC_SPECS):
             ax = axes[r][c]
-            for i, name in enumerate(model_names):
+            for i, name in enumerate(plot_model_names):
                 xs, ys = [], []
                 for mt in max_tokens_list:
                     metric = (results.get(name) or {}).get(str(mt))
@@ -628,8 +631,8 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
                 ax.set_ylabel(_FIGURE_VIEW_ZH[view])
 
     # 单图例放在 axes 上方、suptitle 下方；按 CLI 声明顺序保留模型顺序。
-    ordered_handles = [handles_for_legend[n] for n in model_names if n in handles_for_legend]
-    ordered_labels = [n for n in model_names if n in handles_for_legend]
+    ordered_handles = [handles_for_legend[n] for n in plot_model_names if n in handles_for_legend]
+    ordered_labels = [n for n in plot_model_names if n in handles_for_legend]
     if ordered_handles:
         fig.legend(
             ordered_handles, ordered_labels,
@@ -645,19 +648,7 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
         f'指标随 max_tokens 的变化（数据集 {summary.get("dataset_tag", "?")}）',
         fontsize=10, y=0.99,
     )
-    # baseline 关 thinking 后输出 `<think>\n\n</think>\n\n…`，CoT 完整率恒为 100%
-    # 但不反映推理质量；图例里有 baseline 时在底部加一行小字脚注，避免读者误读。
-    has_baseline = any(n.lower() == 'baseline' for n in ordered_labels)
-    if has_baseline:
-        fig.text(
-            0.5, 0.02,
-            '注：baseline 关闭 thinking，`<think>` 块为空但 tag 已对，'
-            '其「推理过程完整率」恒为 100%，仅反映标签存在性，不反映推理质量。',
-            ha='center', va='bottom', fontsize=6.5, style='italic', color='#444444',
-        )
-        bottom_margin = 0.13
-    else:
-        bottom_margin = 0.10
+    bottom_margin = 0.10
 
     # 顶部空出 legend (~y=0.945) + suptitle (~y=0.99) + 列标题；子图顶到 0.80。
     fig.subplots_adjust(top=0.80, bottom=bottom_margin, left=0.09, right=0.985,
