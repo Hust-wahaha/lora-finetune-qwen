@@ -503,14 +503,14 @@ _FIGURE_PALETTE: tuple[str, ...] = (
 )
 
 _FIGURE_METRIC_SPECS = (
-    ('answer_accuracy', '答案准确率\nAnswer accuracy (%)'),
-    ('cot_completeness_rate', '推理过程完整率\nCoT completeness (%)'),
-    ('generation_completion_rate', '整体回答完整率\nGeneration completion (%)'),
+    ('answer_accuracy', 'Answer accuracy (%)'),
+    ('cot_completeness_rate', 'CoT completeness rate (%)'),
+    ('generation_completion_rate', 'Generation completion rate (%)'),
 )
 
-_FIGURE_VIEW_ZH = {
-    'modern': '白话题面 (modern view)',
-    'classical': '文言题面 (classical view)',
+_FIGURE_VIEW_LABELS = {
+    'modern': 'Vernacular phrasing',
+    'classical': 'Classical phrasing',
 }
 
 
@@ -546,17 +546,18 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
     if not plot_model_names or not max_tokens_list:
         return []
 
-    # rcParams 一次性套上：CJK 字体回退链 + 论文级排版。
+    # rcParams 一次性套上：Times New Roman 衬线字体（已用 font_manager 验证可解析到
+    # C:\Windows\Fonts\times.ttf，非 fallback）+ 论文级排版。
     plt.rcParams.update({
-        'font.family': 'sans-serif',
-        'font.sans-serif': ['Microsoft YaHei', 'SimHei', 'Arial', 'DejaVu Sans'],
+        'font.family': 'serif',
+        'font.serif': ['Times New Roman', 'Times', 'DejaVu Serif', 'serif'],
         'axes.unicode_minus': False,
         'font.size': 8,
-        'axes.titlesize': 9,
-        'axes.labelsize': 8,
+        'axes.titlesize': 10,
+        'axes.labelsize': 8.5,
         'xtick.labelsize': 7,
         'ytick.labelsize': 7,
-        'legend.fontsize': 7,
+        'legend.fontsize': 7.5,
         'axes.spines.top': False,
         'axes.spines.right': False,
         'axes.linewidth': 0.7,
@@ -626,9 +627,9 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
             if r == 0:
                 ax.set_title(label, pad=6)
             if r == n_rows - 1:
-                ax.set_xlabel('生成长度上限 Max tokens')
+                ax.set_xlabel('Maximum generation length (tokens)', fontsize=9.5)
             if c == 0:
-                ax.set_ylabel(_FIGURE_VIEW_ZH[view])
+                ax.set_ylabel(_FIGURE_VIEW_LABELS[view])
 
     # 单图例放在 axes 上方、suptitle 下方；按 CLI 声明顺序保留模型顺序。
     ordered_handles = [handles_for_legend[n] for n in plot_model_names if n in handles_for_legend]
@@ -645,8 +646,8 @@ def render_summary_figures(summary: dict, run_dir: Path) -> list[Path]:
         )
 
     fig.suptitle(
-        f'指标随 max_tokens 的变化（数据集 {summary.get("dataset_tag", "?")}）',
-        fontsize=10, y=0.99,
+        f'Metric trends across decoding length budgets (dataset: {summary.get("dataset_tag", "?")})',
+        fontsize=13, y=0.99,
     )
     bottom_margin = 0.10
 
