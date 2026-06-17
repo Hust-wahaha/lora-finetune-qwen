@@ -754,12 +754,15 @@ def main() -> None:
 
         tokenizer = None
 
-        # 删除原列表里有、新列表里没有的 prediction 文件，避免旧窗口文件残留
+        # 删除原列表里有、新列表里没有的 prediction 文件，避免旧窗口文件残留。
+        # best_mt（各模型的最大推理窗口，作为截断来源）始终保留，即使不在新列表里。
         new_mt_set = set(new_max_tokens_list)
         for spec in model_specs:
+            name = spec['name']
+            best_mt = best_mt_per_model[name]
             for mt in orig_mt_list:
-                if mt not in new_mt_set:
-                    stale = run_dir / 'predictions' / f'{spec["name"]}_mt{mt}.json'
+                if mt not in new_mt_set and mt != best_mt:
+                    stale = run_dir / 'predictions' / f'{name}_mt{mt}.json'
                     if stale.is_file():
                         stale.unlink()
 
