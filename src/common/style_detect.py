@@ -29,21 +29,26 @@ CLASSICAL_KEYWORDS: tuple[str, ...] = (
 
 _ENGLISH_RUN = re.compile(r'[A-Za-z]{4,}')
 _THINK_BLOCK = re.compile(r'<think>\s*(.*?)\s*</think>', re.DOTALL)
-# 答案抽取与「整体回答完整」判定共用同一正则，确保 is_generation_complete 与
-# extract_final_answer 永远同口径，杜绝以前那种「文档说严、实现说松」的协议-实现
-# 脱节。
+# 答案抽取与「整体回答完整」判定共用同一组正则，确保 is_generation_complete 与
+# extract_final_answer 永远同口径，杜绝以前那种「文档说严、实现说松」的协议-实现脱节。
 #
-# 两种合法收尾都接受：
-#   (1) 训练目标格式      `…</think>\n\n答案：78。`
-#   (2) 微调后实测精简格式 `…</think>\n\n78。`
+# 三种合法收尾都接受（按优先级排序）：
+#   (1) 训练目标格式 / 微调后正式格式 `…</think>\n\n答案：78。`
+#   (2) baseline non-thinking 模板格式 `…</think>\n\n…答案：78` —— 句号常被省略，
+#       但「答案：」这个强信号足以确认收尾，不必再要求句号
+#   (3) 精简末尾格式 `…</think>\n\n78。`（无前缀，句号强制要求以与"截断在数字处"区分）
 #
 # 关键约束：
-#   - 末端锚定 `\s*$`，所以只看「整段最后那个数字+句号」，
-#     <think> 内部出现的 "78美元。" / 中间式子 "= 78。" 都不会被误抽
+#   - 末端锚定 `\s*$`，所以只看「整段最后那个数字」，<think> 内部出现的 "78美元。"
+#     / 中间式子 "= 78。" 都不会被误抽
 #   - 数字与句号之间只允许空白，因此 "78美元。" 会被正确拒绝
 #   - 句号兼容中文「。」与英文「.」，但保留小数点 ([0-9]+\.[0-9]+)
-_ANSWER_TAIL = re.compile(
-    r'(?:答案[：:]\s*)?([0-9]+(?:\.[0-9]+)?)\s*[。.]\s*$'
+#   - 「答案：」前缀存在时（分支 1+2）句号可省，否则（分支 3）句号必须存在
+_ANSWER_TAIL_PREFIXED = re.compile(
+    r'答案[：:]\s*([0-9]+(?:\.[0-9]+)?)\s*[。.]?\s*$'
+)
+_ANSWER_TAIL_BARE = re.compile(
+    r'([0-9]+(?:\.[0-9]+)?)\s*[。.]\s*$'
 )
 
 
@@ -70,6 +75,7 @@ def extract_final_answer(text: str | None) -> str | None:
         （例如 `…即5×0.6=3美元。`）或截断在 think 中的 `=15。` 被误抽成答案
       - 不含 `<think>` 块时（极少见，例如裸题面回答）扫描全文，保留兜底
 
+    优先级：先试「答案：N（句号可省）」，再退回「裸 N。（句号必备）」。
     返回纯数字串（如 "78" / "3.5"），抽不到返回 None。
     """
     if not text:
@@ -82,7 +88,10 @@ def extract_final_answer(text: str | None) -> str | None:
         tail = text[close_idx + len(THINK_CLOSE):]
     else:
         tail = text
-    match = _ANSWER_TAIL.search(tail)
+    match = _ANSWER_TAIL_PREFIXED.search(tail)
+    if match:
+        return match.group(1)
+    match = _ANSWER_TAIL_BARE.search(tail)
     return match.group(1) if match else None
 
 
