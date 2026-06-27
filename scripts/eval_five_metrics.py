@@ -383,7 +383,358 @@ def _fmt_pct(value) -> str:
     return f'{value * 100:.2f}%'
 
 
-def render_markdown_summary(summary: dict) -> str:
+def _infer_cot_style(model_name: str) -> str:
+    """按命名约定 *2{m|c|s} 推断 CoT 输出风格（适用于 s800_think 训练路线）。"""
+    n = model_name.lower()
+    if n == 'baseline':
+        return '无（baseline）'
+    if '2m' in n:
+        return '白话 CoT'
+    if '2c' in n:
+        return '文言 CoT'
+    if '2s' in n:
+        return '结构化 CoT'
+    return '—'
+
+
+def _load_token_data_for_render(summary: dict, run_dir: Path) -> 'dict[str, list[dict]] | None':
+    """加载 max_mt 预测文件并计算 token 数，供渲染时使用（CPU only，不需要 GPU）。
+
+    返回 {model_name: [{'view', 'answer_correct', 'cot_complete', 'response_tokens'}, ...]}
+    加载失败时返回 None，调用方须降级处理。
+    """
+    try:
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    except Exception:
+        return None
+
+    model_specs = summary.get('models', [])
+    max_tokens_list = sorted(summary.get('decode_max_tokens_list', []))
+    if not max_tokens_list:
+        return None
+    max_mt = max(max_tokens_list)
+    results = summary.get('results', {})
+
+    token_data: dict[str, list[dict]] = {}
+    for spec in model_specs:
+        name = spec['name']
+        pred_path = run_dir / 'predictions' / f'{name}_mt{max_mt}.json'
+        if not pred_path.is_file():
+            continue
+        try:
+            pred_rows = json.loads(pred_path.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        detail_by_id = {
+            d['id']: d
+            for d in ((results.get(name) or {}).get(str(max_mt)) or {}).get('detailed', [])
+        }
+        records = []
+        for row in pred_rows:
+            resp = row.get('response', '')
+            d = detail_by_id.get(row.get('id', ''), {})
+            records.append({
+                'view': row.get('view', ''),
+                'answer_correct': d.get('answer_correct', False),
+                'cot_complete': d.get('cot_complete', False),
+                'response_tokens': len(tokenizer.encode(resp, add_special_tokens=False)),
+            })
+        token_data[name] = records
+
+    return token_data or None
+
+
+def _key_insights_lines(summary: dict, token_data: 'dict[str, list[dict]] | None' = None) -> list[str]:
+    """从评测结果提炼直观对比数字，供 PPT 向评委展示。
+
+    三个子板块：
+    1. 各模型准确率 + 白话/文言差距（衡量跨语言风格泛化能力）
+    2. 答对时的平均 token 数（按 CoT 训练风格分组对比）
+    3. 推理过程完整率首超 90% 所需最小 max_tokens（按 CoT 风格对比）
+       （baseline 排除：其 <think> 块恒为空，完整率无意义）
+    每个子板块后附一句提炼语。
+    """
+    results = summary.get('results', {})
+    model_specs = summary.get('models', [])
+    model_names = [m['name'] for m in model_specs] or list(results.keys())
+    max_tokens_list = sorted(summary.get('decode_max_tokens_list', []))
+    if not model_names or not max_tokens_list:
+        return []
+
+    max_mt = max(max_tokens_list)
+    lines: list[str] = []
+
+    lines.append('## 关键数据一览')
+    lines.append('')
+    lines.append('> 从评测结果中提炼的直观对比数字，适合在 PPT 中向评委直引，与趋势图互为补充。')
+    lines.append(f'> 所有"最大窗口"数据均取自 max_tokens = **{max_mt}**。')
+    lines.append('')
+
+    # ── 预先收集数据，供各板块和提炼语复用 ──────────────────────────────
+
+    # CoT 风格在两个板块共用的展示顺序
+    _STYLE_ORDER = ('白话 CoT', '结构化 CoT', '文言 CoT')
+
+    def _rate(correct: int, total: int) -> float:
+        return correct / total if total else 0.0
+
+    # (a) 准确率数据
+    acc_data: dict[str, dict] = {}
+    for name in model_names:
+        r = (results.get(name) or {}).get(str(max_mt))
+        if not r:
+            continue
+        m_acc = (r.get('by_view', {}).get('modern') or {}).get('answer_accuracy') or 0
+        c_acc = (r.get('by_view', {}).get('classical') or {}).get('answer_accuracy') or 0
+        overall = r.get('answer_accuracy') or 0
+        acc_data[name] = {'modern': m_acc, 'classical': c_acc, 'overall': overall,
+                          'gap': m_acc - c_acc}
+
+    # (b) 按 CoT 风格合并准确率（排除 baseline），与板块 2 token 消耗形成 trade-off。
+    #     从 detailed 逐条累加 correct/total，得到样本加权的合并准确率（非各模型简单平均）。
+    acc_style: dict[str, dict[str, int]] = {}
+    for name in model_names:
+        if 'baseline' in name.lower():
+            continue
+        r = (results.get(name) or {}).get(str(max_mt))
+        if not r:
+            continue
+        style = _infer_cot_style(name)
+        b = acc_style.setdefault(style, {'m_c': 0, 'm_t': 0, 'c_c': 0, 'c_t': 0, 'o_c': 0, 'o_t': 0})
+        for d in r.get('detailed', []):
+            correct = int(bool(d.get('answer_correct')))
+            b['o_t'] += 1
+            b['o_c'] += correct
+            if d.get('view') == 'modern':
+                b['m_t'] += 1
+                b['m_c'] += correct
+            elif d.get('view') == 'classical':
+                b['c_t'] += 1
+                b['c_c'] += correct
+
+    # ── 板块 1：准确率 + 白话/文言差距 ─────────────────────────────────
+
+    lines.append(f'### 1  各模型准确率与白话/文言差距（max_tokens = {max_mt}）')
+    lines.append('')
+    lines.append('> 「白话−文言差距」= 白话题面准确率 − 文言题面准确率（pp = 百分点）。')
+    lines.append('> 差距越小，说明模型对两种语言风格的泛化能力越均衡。')
+    lines.append('')
+    lines.append('**各模型明细：**')
+    lines.append('')
+    lines.append('| 模型 | CoT 风格 | 白话题面 | 文言题面 | 整体 | 白话−文言（差距）|')
+    lines.append('|---|---|---:|---:|---:|---:|')
+    for name in model_names:
+        d = acc_data.get(name)
+        if d is None:
+            continue
+        gap_str = f'{d["gap"] * 100:+.1f} pp'
+        lines.append(
+            f'| `{name}` | {_infer_cot_style(name)} | {_fmt_pct(d["modern"])} | {_fmt_pct(d["classical"])} '
+            f'| {_fmt_pct(d["overall"])} | {gap_str} |'
+        )
+    lines.append('')
+
+    # 按 CoT 风格汇总准确率（排除 baseline）—— 与板块 2 的 token 汇总表对照即得 trade-off
+    if len(acc_style) > 1:
+        lines.append('**按 CoT 风格汇总（排除 baseline，样本加权合并）：**')
+        lines.append('')
+        lines.append('| CoT 风格 | 白话题面 | 文言题面 | 整体 | 白话−文言（差距）|')
+        lines.append('|---|---:|---:|---:|---:|')
+        for style in [s for s in _STYLE_ORDER if s in acc_style]:
+            b = acc_style[style]
+            m_r, c_r, o_r = _rate(b['m_c'], b['m_t']), _rate(b['c_c'], b['c_t']), _rate(b['o_c'], b['o_t'])
+            gap = (m_r - c_r) * 100
+            lines.append(
+                f'| {style} | {_fmt_pct(m_r)} | {_fmt_pct(c_r)} | {_fmt_pct(o_r)} | {gap:+.1f} pp |'
+            )
+        lines.append('')
+
+    # 提炼语：找最小差距的非 baseline 模型 vs baseline 差距
+    non_baseline_acc = {n: d for n, d in acc_data.items() if 'baseline' not in n.lower()}
+    baseline_acc = acc_data.get('baseline')
+    if non_baseline_acc:
+        best_name = max(non_baseline_acc, key=lambda n: non_baseline_acc[n]['overall'])
+        best_d = non_baseline_acc[best_name]
+        min_gap_name = min(non_baseline_acc, key=lambda n: abs(non_baseline_acc[n]['gap']))
+        min_gap_d = non_baseline_acc[min_gap_name]
+        takeaway = (
+            f'**要点：** 微调模型中整体准确率最高为 `{best_name}`（{_fmt_pct(best_d["overall"])}）。'
+        )
+        if baseline_acc:
+            takeaway += (
+                f' 差距最小的模型 `{min_gap_name}` 白话/文言差距仅 **{min_gap_d["gap"]*100:.1f} pp**，'
+                f'显著低于 baseline 的 **{baseline_acc["gap"]*100:.1f} pp**，'
+                f'说明微调有效改善了文言题面的泛化能力。'
+            )
+        lines.append(f'> {takeaway}')
+        lines.append('')
+
+    # ── 板块 2：按 CoT 训练风格对比平均 token 数 ────────────────────────
+    # token_data 由调用方通过 _load_token_data_for_render 预计算，缺失时降级显示提示。
+
+    lines.append('### 2  答对时的平均推理 token 数（按 CoT 训练风格分组）')
+    lines.append('')
+    lines.append(f'> 取 max_tokens = {max_mt} 下所有**答案正确**的样本，统计响应 token 数（含 `<think>` 标签，不含 special tokens）。')
+    lines.append('> CoT 风格由命名约定推断（末位 **m** = 白话，**c** = 文言，**s** = 结构化）。')
+    lines.append('')
+
+    if token_data is None:
+        lines.append('> ⚠️ 未计算 token 数：需 `predictions/` 目录下有对应文件且 tokenizer 可加载。')
+        lines.append('> 用 `--render-only --existing-run-dir <run>` 重新渲染即可自动计算。')
+        lines.append('')
+    else:
+        # 各模型明细
+        lines.append('**各模型明细：**')
+        lines.append('')
+        lines.append('| 模型 | CoT 风格 | 答对数 | 平均 tokens（答对时）|')
+        lines.append('|---|---|---:|---:|')
+        baseline_avg_tokens = 0.0
+        if 'baseline' in token_data:
+            bl_toks = [r['response_tokens'] for r in token_data['baseline'] if r['answer_correct']]
+            baseline_avg_tokens = sum(bl_toks) / len(bl_toks) if bl_toks else 0.0
+        for name in model_names:
+            recs = token_data.get(name)
+            if not recs:
+                continue
+            correct_toks = [r['response_tokens'] for r in recs if r['answer_correct']]
+            avg_tok = sum(correct_toks) / len(correct_toks) if correct_toks else 0.0
+            lines.append(f'| `{name}` | {_infer_cot_style(name)} | {len(correct_toks)} | {avg_tok:.0f} |')
+        lines.append('')
+
+        # 按 CoT 风格汇总（排除 baseline）
+        cot_style_groups: dict[str, list[int]] = {}
+        for name in model_names:
+            if 'baseline' in name.lower():
+                continue
+            recs = token_data.get(name)
+            if not recs:
+                continue
+            style = _infer_cot_style(name)
+            toks = [r['response_tokens'] for r in recs if r['answer_correct']]
+            cot_style_groups.setdefault(style, []).extend(toks)
+
+        if len(cot_style_groups) > 1:
+            ref_style = next((s for s in _STYLE_ORDER if s in cot_style_groups),
+                             next(iter(cot_style_groups)))
+            ref_avg = sum(cot_style_groups[ref_style]) / len(cot_style_groups[ref_style])
+            lines.append('**按 CoT 风格汇总（排除 baseline）：**')
+            lines.append('')
+            lines.append('| CoT 风格 | 合并答对数 | 合并平均 tokens | 相比白话 CoT |')
+            lines.append('|---|---:|---:|---:|')
+            for style in [s for s in _STYLE_ORDER if s in cot_style_groups]:
+                toks = cot_style_groups[style]
+                avg = sum(toks) / len(toks)
+                if style == ref_style:
+                    vs_str = '—（基准）'
+                else:
+                    diff_pct = (ref_avg - avg) / ref_avg * 100 if ref_avg > 0 else 0
+                    sign = '短' if diff_pct >= 0 else '长'
+                    vs_str = f'{sign} {abs(diff_pct):.0f}%'
+                lines.append(f'| {style} | {len(toks)} | {avg:.0f} | {vs_str} |')
+            lines.append('')
+
+            # 提炼语：综合板块 1 的准确率与本板块的 token，凸显「准确率 / 长度」trade-off
+            style_tok = {s: sum(cot_style_groups[s]) / len(cot_style_groups[s])
+                         for s in cot_style_groups}
+            style_acc = {s: _rate(acc_style[s]['o_c'], acc_style[s]['o_t'])
+                         for s in acc_style if acc_style[s]['o_t']}
+            common = [s for s in _STYLE_ORDER if s in style_tok and s in style_acc]
+            if len(common) >= 2:
+                pair_str = '；'.join(
+                    f'{s} 约 {style_tok[s]:.0f} tokens / 准确率 {style_acc[s] * 100:.1f}%'
+                    for s in common
+                )
+                best_acc = max(common, key=lambda s: style_acc[s])
+                least_tok = min(common, key=lambda s: style_tok[s])
+                if best_acc == least_tok:
+                    verdict = (
+                        f'其中 **{best_acc}** 既准确率最高（{style_acc[best_acc] * 100:.1f}%）'
+                        f'又最省 token（{style_tok[best_acc]:.0f}），是 trade-off 的绝对最优。'
+                    )
+                else:
+                    verdict = (
+                        f'其中 **{best_acc}** 准确率最高（{style_acc[best_acc] * 100:.1f}%），'
+                        f'且 token 消耗（约 {style_tok[best_acc]:.0f}）已逼近最省的 {least_tok}'
+                        f'（约 {style_tok[least_tok]:.0f}），是「准确率 / 长度」trade-off 的最优选择；'
+                        f'{least_tok} 虽 token 最省，但准确率仅 {style_acc[least_tok] * 100:.1f}%。'
+                    )
+                lines.append(f'> **要点（准确率 / 长度 trade-off）：** 答题正确时各风格——{pair_str}。{verdict}')
+            elif baseline_avg_tokens > 0:
+                all_ft = [t for toks in cot_style_groups.values() for t in toks]
+                ft_avg = sum(all_ft) / len(all_ft) if all_ft else 0.0
+                saving = (baseline_avg_tokens - ft_avg) / baseline_avg_tokens * 100
+                lines.append(
+                    f'> **要点：** 微调模型答对时平均 **{ft_avg:.0f} tokens**，'
+                    f'比 baseline（{baseline_avg_tokens:.0f} tokens）短 **{saving:.0f}%**。'
+                )
+            lines.append('')
+
+    # ── 板块 3：CoT 完整率首超 90% 所需最小窗口（按 CoT 风格对比）────────
+    # baseline 排除：<think> 块恒为空，完整率恒 100%，无参考价值。
+
+    lines.append('### 3  推理完整率首超 90% 所需最小窗口（按 CoT 风格对比）')
+    lines.append('')
+    lines.append('> 「推理完整」= `<think>…</think>` 标签成对、推理段未被截断。')
+    lines.append('> baseline 已排除（`<think>` 块恒空，完整率恒 100%，无参考价值）。')
+    lines.append('> 按 CoT 风格排序，便于直接比较不同训练风格所需的最小 token 预算。')
+    lines.append('')
+    lines.append('| 模型 | CoT 风格 | 整体（tokens）| 白话题面（tokens）| 文言题面（tokens）|')
+    lines.append('|---|---|---:|---:|---:|')
+
+    _STYLE_ORDER_3 = ('白话 CoT', '结构化 CoT', '文言 CoT', '—')
+    sorted_non_baseline = sorted(
+        [n for n in model_names if 'baseline' not in n.lower()],
+        key=lambda n: (
+            _STYLE_ORDER_3.index(_infer_cot_style(n))
+            if _infer_cot_style(n) in _STYLE_ORDER_3 else 99,
+            n,
+        ),
+    )
+
+    cot90_by_style: dict[str, list[int]] = {}
+    for name in sorted_non_baseline:
+        _mr = results.get(name) or {}
+        style = _infer_cot_style(name)
+
+        def _first_cot_over(thr: float, view_key: str | None = None,
+                            _model_results: dict = _mr) -> str:
+            for mt in max_tokens_list:
+                r = _model_results.get(str(mt)) or {}
+                rate = (
+                    (r.get('by_view', {}).get(view_key) or {}).get('cot_completeness_rate')
+                    if view_key else r.get('cot_completeness_rate')
+                ) or 0
+                if rate > thr:
+                    return str(mt)
+            return 'N/A'
+
+        overall_str = _first_cot_over(0.9)
+        modern_str = _first_cot_over(0.9, 'modern')
+        classical_str = _first_cot_over(0.9, 'classical')
+        lines.append(f'| `{name}` | {style} | {overall_str} | {modern_str} | {classical_str} |')
+        if overall_str != 'N/A':
+            cot90_by_style.setdefault(style, []).append(int(overall_str))
+
+    lines.append('')
+
+    # 提炼语：按风格给中位数阈值
+    if cot90_by_style:
+        style_median: dict[str, int] = {
+            style: sorted(mts)[len(mts) // 2]
+            for style, mts in cot90_by_style.items()
+        }
+        parts = [
+            f'{style} **{style_median[style]} tokens**'
+            for style in _STYLE_ORDER_3 if style in style_median
+        ]
+        lines.append('> **要点：** 推理完整率首超 90% 所需最小窗口——' + '，'.join(parts) + '。')
+        lines.append('')
+
+    return lines
+
+
+def render_markdown_summary(summary: dict, run_dir: 'Path | None' = None) -> str:
     results = summary.get('results', {})
     model_specs = summary.get('models', [])
     model_names = [m['name'] for m in model_specs] or list(results.keys())
@@ -425,6 +776,9 @@ def render_markdown_summary(summary: dict) -> str:
     lines.append('> 只反映 tag 是否成对，不反映其推理质量；要看 baseline 的真实能力请直接看「答案准确率」')
     lines.append('> 与「整体回答完整率」。')
     lines.append('')
+
+    _token_data = _load_token_data_for_render(summary, run_dir) if run_dir else None
+    lines.extend(_key_insights_lines(summary, _token_data))
 
     # 整体表现
     lines.append('## 整体表现（白话题与文言题合并统计）')
@@ -486,7 +840,7 @@ def render_markdown_summary(summary: dict) -> str:
 
 def write_markdown_summary(run_dir: Path, summary: dict) -> Path:
     md_path = run_dir / 'metrics' / 'summary.md'
-    md_path.write_text(render_markdown_summary(summary), encoding='utf-8')
+    md_path.write_text(render_markdown_summary(summary, run_dir), encoding='utf-8')
     return md_path
 
 
